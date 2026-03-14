@@ -14,16 +14,86 @@ const emptyOrg = {
   bank: { bik: '', bankName: '', checkingAccount: '', correspondentAccount: '' },
 };
 
+// ============================================================
+// Правила валидации по российским форматам реквизитов
+// ============================================================
+function validate(form) {
+  const errors = {};
+
+  // Название — обязательное
+  if (!form.name.trim()) {
+    errors.name = 'Введите название организации';
+  }
+
+  // ИНН — 10 цифр (юрлицо) или 12 цифр (ИП), только цифры
+  if (!form.inn) {
+    errors.inn = 'Введите ИНН';
+  } else if (!/^\d{10}$|^\d{12}$/.test(form.inn)) {
+    errors.inn = 'ИНН — 10 цифр (юрлицо) или 12 цифр (ИП)';
+  }
+
+  // КПП — 9 цифр, необязательное (только если заполнено)
+  if (form.kpp && !/^\d{9}$/.test(form.kpp)) {
+    errors.kpp = 'КПП — 9 цифр';
+  }
+
+  // ОГРН — 13 цифр (юрлицо) или 15 цифр (ИП), необязательное
+  if (form.ogrn && !/^\d{13}$|^\d{15}$/.test(form.ogrn)) {
+    errors.ogrn = 'ОГРН — 13 цифр (юрлицо) или 15 цифр (ИП)';
+  }
+
+  // БИК — 9 цифр, необязательное
+  if (form.bank?.bik && !/^\d{9}$/.test(form.bank.bik)) {
+    errors.bik = 'БИК — 9 цифр';
+  }
+
+  // Расчётный счёт — 20 цифр, необязательное
+  if (form.bank?.checkingAccount && !/^\d{20}$/.test(form.bank.checkingAccount)) {
+    errors.checkingAccount = 'Расчётный счёт — 20 цифр';
+  }
+
+  // Корр. счёт — 20 цифр, необязательное
+  if (form.bank?.correspondentAccount && !/^\d{20}$/.test(form.bank.correspondentAccount)) {
+    errors.correspondentAccount = 'Корр. счёт — 20 цифр';
+  }
+
+  return errors;
+}
+
+// Вспомогательный компонент: поле с подсветкой ошибки
+function Field({ label, error, children }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-slate-700 mb-1.5">{label}</label>
+      {children}
+      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+    </div>
+  );
+}
+
+// Стили инпута — красная рамка при ошибке
+function inputClass(hasError) {
+  return `w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent ${
+    hasError
+      ? 'border-red-400 focus:ring-red-400'
+      : 'border-slate-200 focus:ring-blue-500'
+  }`;
+}
+
 export default function OrganizationsPage() {
   const [orgs, setOrgs] = useState(mockOrganizations);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editOrg, setEditOrg] = useState(null);    // null = добавление, объект = редактирование
+  const [editOrg, setEditOrg] = useState(null);
   const [form, setForm] = useState(emptyOrg);
-  const [activeTab, setActiveTab] = useState('requisites'); // вкладка в модалке
+  const [errors, setErrors] = useState({});       // ошибки валидации
+  const [submitted, setSubmitted] = useState(false); // была ли попытка отправки
+  const [activeTab, setActiveTab] = useState('requisites');
 
   function openAdd() {
     setEditOrg(null);
     setForm(emptyOrg);
+    setErrors({});
+    setSubmitted(false);
     setActiveTab('requisites');
     setModalOpen(true);
   }
@@ -31,11 +101,33 @@ export default function OrganizationsPage() {
   function openEdit(org) {
     setEditOrg(org);
     setForm(org);
+    setErrors({});
+    setSubmitted(false);
     setActiveTab('requisites');
     setModalOpen(true);
   }
 
+  // Валидируем при каждом изменении поля (только после первой попытки сохранить)
+  function setField(field, value) {
+    const updated = { ...form, [field]: value };
+    setForm(updated);
+    if (submitted) setErrors(validate(updated));
+  }
+
+  function setBankField(field, value) {
+    const updated = { ...form, bank: { ...form.bank, [field]: value } };
+    setForm(updated);
+    if (submitted) setErrors(validate(updated));
+  }
+
   function handleSave() {
+    setSubmitted(true);
+    const errs = validate(form);
+    setErrors(errs);
+
+    // Если есть ошибки — блокируем сохранение
+    if (Object.keys(errs).length > 0) return;
+
     if (editOrg) {
       setOrgs(prev => prev.map(o => o.id === editOrg.id ? { ...form, id: editOrg.id } : o));
     } else {
@@ -52,13 +144,8 @@ export default function OrganizationsPage() {
     setOrgs(prev => prev.map(o => ({ ...o, isMain: o.id === id })));
   }
 
-  function setField(field, value) {
-    setForm(prev => ({ ...prev, [field]: value }));
-  }
-
-  function setBankField(field, value) {
-    setForm(prev => ({ ...prev, bank: { ...prev.bank, [field]: value } }));
-  }
+  // Есть ли ошибки после попытки сохранить
+  const hasErrors = submitted && Object.keys(errors).length > 0;
 
   return (
     <DashboardLayout title="Организации">
@@ -84,7 +171,6 @@ export default function OrganizationsPage() {
               org.isMain ? 'border-blue-300 shadow-sm shadow-blue-100' : 'border-slate-200'
             }`}
           >
-            {/* Бейдж "Основная" */}
             {org.isMain && (
               <span className="absolute top-4 right-4 text-xs bg-blue-100 text-blue-700 font-semibold px-2.5 py-1 rounded-full flex items-center gap-1">
                 <Star size={11} className="fill-blue-600" />
@@ -112,7 +198,6 @@ export default function OrganizationsPage() {
               <p className="text-xs text-slate-400 mb-4 truncate">{org.address}</p>
             )}
 
-            {/* Кнопки действий */}
             <div className="flex items-center gap-2">
               <button
                 onClick={() => openEdit(org)}
@@ -149,7 +234,7 @@ export default function OrganizationsPage() {
         size="lg"
       >
         {/* Вкладки */}
-        <div className="flex gap-1 mb-6 border-b border-slate-100 pb-0">
+        <div className="flex gap-1 mb-6 border-b border-slate-100">
           {[
             { id: 'requisites', label: 'Реквизиты' },
             { id: 'bank', label: 'Банковские данные' },
@@ -172,108 +257,141 @@ export default function OrganizationsPage() {
         {/* Вкладка: Реквизиты */}
         {activeTab === 'requisites' && (
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Название организации</label>
+            <Field label="Название организации" error={errors.name}>
               <input
                 type="text"
                 value={form.name}
                 onChange={e => setField('name', e.target.value)}
                 placeholder="ООО «Название»"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={inputClass(errors.name)}
               />
-            </div>
+            </Field>
+
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">ИНН</label>
+              <Field label="ИНН" error={errors.inn}>
                 <input
                   type="text"
                   value={form.inn}
                   onChange={e => setField('inn', e.target.value)}
                   placeholder="7701234567"
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  maxLength={12}
+                  className={inputClass(errors.inn)}
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">КПП</label>
+              </Field>
+
+              <Field label="КПП" error={errors.kpp}>
                 <input
                   type="text"
                   value={form.kpp}
                   onChange={e => setField('kpp', e.target.value)}
                   placeholder="770101001"
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  maxLength={9}
+                  className={inputClass(errors.kpp)}
                 />
-              </div>
+              </Field>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">ОГРН</label>
+
+            <Field label="ОГРН" error={errors.ogrn}>
               <input
                 type="text"
                 value={form.ogrn}
                 onChange={e => setField('ogrn', e.target.value)}
                 placeholder="1027700132195"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                maxLength={15}
+                className={inputClass(errors.ogrn)}
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Юридический адрес</label>
+            </Field>
+
+            <Field label="Юридический адрес" error={errors.address}>
               <input
                 type="text"
                 value={form.address}
                 onChange={e => setField('address', e.target.value)}
                 placeholder="г. Москва, ул. Тверская, д. 1"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={inputClass(errors.address)}
               />
-            </div>
+            </Field>
           </div>
         )}
 
         {/* Вкладка: Банк */}
         {activeTab === 'bank' && (
           <div className="space-y-4">
-            {[
-              { label: 'БИК', field: 'bik', placeholder: '044525225' },
-              { label: 'Банк', field: 'bankName', placeholder: 'ПАО Сбербанк' },
-              { label: 'Расчётный счёт', field: 'checkingAccount', placeholder: '40702810938000012345' },
-              { label: 'Корр. счёт', field: 'correspondentAccount', placeholder: '30101810400000000225' },
-            ].map(item => (
-              <div key={item.field}>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">{item.label}</label>
-                <input
-                  type="text"
-                  value={form.bank?.[item.field] || ''}
-                  onChange={e => setBankField(item.field, e.target.value)}
-                  placeholder={item.placeholder}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            ))}
+            <Field label="БИК" error={errors.bik}>
+              <input
+                type="text"
+                value={form.bank?.bik || ''}
+                onChange={e => setBankField('bik', e.target.value)}
+                placeholder="044525225"
+                maxLength={9}
+                className={inputClass(errors.bik)}
+              />
+            </Field>
+
+            <Field label="Банк" error={errors.bankName}>
+              <input
+                type="text"
+                value={form.bank?.bankName || ''}
+                onChange={e => setBankField('bankName', e.target.value)}
+                placeholder="ПАО Сбербанк"
+                className={inputClass(errors.bankName)}
+              />
+            </Field>
+
+            <Field label="Расчётный счёт" error={errors.checkingAccount}>
+              <input
+                type="text"
+                value={form.bank?.checkingAccount || ''}
+                onChange={e => setBankField('checkingAccount', e.target.value)}
+                placeholder="40702810938000012345"
+                maxLength={20}
+                className={inputClass(errors.checkingAccount)}
+              />
+            </Field>
+
+            <Field label="Корр. счёт" error={errors.correspondentAccount}>
+              <input
+                type="text"
+                value={form.bank?.correspondentAccount || ''}
+                onChange={e => setBankField('correspondentAccount', e.target.value)}
+                placeholder="30101810400000000225"
+                maxLength={20}
+                className={inputClass(errors.correspondentAccount)}
+              />
+            </Field>
           </div>
         )}
 
         {/* Вкладка: Контакты */}
         {activeTab === 'contacts' && (
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Телефон</label>
+            <Field label="Телефон" error={errors.phone}>
               <input
                 type="tel"
                 value={form.phone}
                 onChange={e => setField('phone', e.target.value)}
                 placeholder="+7 (495) 123-45-67"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={inputClass(errors.phone)}
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
+            </Field>
+
+            <Field label="Email" error={errors.email}>
               <input
                 type="email"
                 value={form.email}
                 onChange={e => setField('email', e.target.value)}
                 placeholder="info@company.ru"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={inputClass(errors.email)}
               />
-            </div>
+            </Field>
           </div>
+        )}
+
+        {/* Общая подсказка об ошибках */}
+        {hasErrors && (
+          <p className="text-xs text-red-500 mt-4">
+            Исправьте ошибки перед сохранением (проверьте все вкладки)
+          </p>
         )}
 
         {/* Кнопки */}
@@ -286,7 +404,7 @@ export default function OrganizationsPage() {
           </button>
           <button
             onClick={handleSave}
-            className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Сохранить
           </button>
