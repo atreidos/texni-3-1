@@ -185,21 +185,13 @@ export default function OrganizationsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">ИНН</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={form.inn}
-                    onChange={e => setField('inn', e.target.value)}
-                    placeholder="7701234567"
-                    className="flex-1 px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button
-                    className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-500 hover:bg-slate-50 whitespace-nowrap"
-                    title="Найти по ИНН через ЕГРЮЛ (заглушка)"
-                  >
-                    Найти
-                  </button>
-                </div>
+                <input
+                  type="text"
+                  value={form.inn}
+                  onChange={e => setField('inn', e.target.value)}
+                  placeholder="7701234567"
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">КПП</label>

@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Upload, Sparkles, PenTool, Building2,
   ArrowRight, Check, Star, FileText,
-  ChevronRight, Shield, Zap
+  ChevronRight, Zap
 } from 'lucide-react';
 import Header from '../components/Header';
 import PricingCard from '../components/PricingCard';
@@ -244,49 +244,16 @@ export default function LandingPage() {
       </section>
 
       {/* ===== FOOTER ===== */}
-      <footer className="bg-slate-900 text-slate-400 py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-            {/* Логотип */}
-            <div>
-              <div className="flex items-center gap-2 text-white font-bold text-xl mb-3">
-                <FileText size={20} />
-                DocFlow
-              </div>
-              <p className="text-sm">Быстрое заполнение и подписание документов онлайн.</p>
-            </div>
-            {/* Продукт */}
-            <div>
-              <h4 className="text-white font-semibold mb-3 text-sm">Продукт</h4>
-              <ul className="space-y-2 text-sm">
-                <li><a href="/editor" className="hover:text-white transition-colors">Редактор</a></li>
-                <li><a href="/pricing" className="hover:text-white transition-colors">Тарифы</a></li>
-              </ul>
-            </div>
-            {/* Компания */}
-            <div>
-              <h4 className="text-white font-semibold mb-3 text-sm">Компания</h4>
-              <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white transition-colors">О нас</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Блог</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Контакты</a></li>
-              </ul>
-            </div>
-            {/* Правовое */}
-            <div>
-              <h4 className="text-white font-semibold mb-3 text-sm">Правовое</h4>
-              <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white transition-colors">Политика конфиденциальности</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Оферта</a></li>
-              </ul>
-            </div>
+      <footer className="bg-slate-900 text-slate-400 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
+          <div className="flex items-center gap-2 text-white font-bold">
+            <FileText size={18} />
+            DocFlow
           </div>
-          <div className="border-t border-slate-800 pt-6 flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-sm">© 2026 DocFlow. Все права защищены.</p>
-            <div className="flex items-center gap-2 text-sm">
-              <Shield size={14} />
-              Данные защищены по стандарту ISO 27001
-            </div>
+          <p>© 2026 DocFlow. Все права защищены.</p>
+          <div className="flex items-center gap-4">
+            <a href="#" className="hover:text-white transition-colors">Политика конфиденциальности</a>
+            <a href="#" className="hover:text-white transition-colors">Оферта</a>
           </div>
         </div>
       </footer>

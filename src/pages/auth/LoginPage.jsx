@@ -90,10 +90,11 @@ export default function LoginPage() {
               <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
             )}
 
-            {/* Кнопка входа */}
+            {/* Кнопка входа — disabled пока поля не заполнены */}
             <button
               type="submit"
-              className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+              disabled={!email || !password}
+              className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Войти
             </button>
