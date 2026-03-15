@@ -2,11 +2,12 @@
 // OrganizationsPage — управление организациями /dashboard/organizations
 // ============================================================
 
-import { useState } from 'react';
-import { Plus, Edit2, Trash2, Star, Building2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Edit2, Trash2, Star, Building2, AlertCircle, Loader2 } from 'lucide-react';
 import DashboardLayout from '../../components/DashboardLayout';
 import Modal from '../../components/Modal';
-import { mockOrganizations } from '../../data/mockData';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 // Начальное состояние формы новой организации
 const emptyOrg = {
@@ -15,44 +16,79 @@ const emptyOrg = {
 };
 
 // ============================================================
+// Маппинг: строка БД → форма фронтенда
+// ============================================================
+function orgFromDb(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    inn: row.inn,
+    kpp: row.kpp ?? '',
+    ogrn: row.ogrn ?? '',
+    address: row.address ?? '',
+    phone: row.phone ?? '',
+    email: row.email ?? '',
+    isMain: row.is_main,
+    bank: {
+      bik: row.bank_bik ?? '',
+      bankName: row.bank_name ?? '',
+      checkingAccount: row.checking_account ?? '',
+      correspondentAccount: row.correspondent_account ?? '',
+    },
+  };
+}
+
+// Маппинг: форма фронтенда → объект для вставки/обновления в БД
+function orgToDb(form, userId) {
+  return {
+    user_id: userId,
+    name: form.name,
+    inn: form.inn,
+    kpp: form.kpp || null,
+    ogrn: form.ogrn || null,
+    address: form.address || null,
+    phone: form.phone || null,
+    email: form.email || null,
+    is_main: form.isMain ?? false,
+    bank_bik: form.bank?.bik || null,
+    bank_name: form.bank?.bankName || null,
+    checking_account: form.bank?.checkingAccount || null,
+    correspondent_account: form.bank?.correspondentAccount || null,
+  };
+}
+
+// ============================================================
 // Правила валидации по российским форматам реквизитов
 // ============================================================
 function validate(form) {
   const errors = {};
 
-  // Название — обязательное
   if (!form.name.trim()) {
     errors.name = 'Введите название организации';
   }
 
-  // ИНН — 10 цифр (юрлицо) или 12 цифр (ИП), только цифры
   if (!form.inn) {
     errors.inn = 'Введите ИНН';
   } else if (!/^\d{10}$|^\d{12}$/.test(form.inn)) {
     errors.inn = 'ИНН — 10 цифр (юрлицо) или 12 цифр (ИП)';
   }
 
-  // КПП — 9 цифр, необязательное (только если заполнено)
   if (form.kpp && !/^\d{9}$/.test(form.kpp)) {
     errors.kpp = 'КПП — 9 цифр';
   }
 
-  // ОГРН — 13 цифр (юрлицо) или 15 цифр (ИП), необязательное
   if (form.ogrn && !/^\d{13}$|^\d{15}$/.test(form.ogrn)) {
     errors.ogrn = 'ОГРН — 13 цифр (юрлицо) или 15 цифр (ИП)';
   }
 
-  // БИК — 9 цифр, необязательное
   if (form.bank?.bik && !/^\d{9}$/.test(form.bank.bik)) {
     errors.bik = 'БИК — 9 цифр';
   }
 
-  // Расчётный счёт — 20 цифр, необязательное
   if (form.bank?.checkingAccount && !/^\d{20}$/.test(form.bank.checkingAccount)) {
     errors.checkingAccount = 'Расчётный счёт — 20 цифр';
   }
 
-  // Корр. счёт — 20 цифр, необязательное
   if (form.bank?.correspondentAccount && !/^\d{20}$/.test(form.bank.correspondentAccount)) {
     errors.correspondentAccount = 'Корр. счёт — 20 цифр';
   }
@@ -60,7 +96,6 @@ function validate(form) {
   return errors;
 }
 
-// Вспомогательный компонент: поле с подсветкой ошибки
 function Field({ label, error, children }) {
   return (
     <div>
@@ -71,7 +106,6 @@ function Field({ label, error, children }) {
   );
 }
 
-// Стили инпута — красная рамка при ошибке
 function inputClass(hasError) {
   return `w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent ${
     hasError
@@ -81,19 +115,49 @@ function inputClass(hasError) {
 }
 
 export default function OrganizationsPage() {
-  const [orgs, setOrgs] = useState(mockOrganizations);
+  const { user } = useAuth();
+
+  const [orgs, setOrgs] = useState([]);
+  const [loadingList, setLoadingList] = useState(true);
+  const [listError, setListError] = useState(null);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editOrg, setEditOrg] = useState(null);
   const [form, setForm] = useState(emptyOrg);
-  const [errors, setErrors] = useState({});       // ошибки валидации
-  const [submitted, setSubmitted] = useState(false); // была ли попытка отправки
+  const [errors, setErrors] = useState({});
+  const [submitted, setSubmitted] = useState(false);
   const [activeTab, setActiveTab] = useState('requisites');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  useEffect(() => {
+    if (!user?.id) return;
+    fetchOrgs();
+  }, [user?.id]);
+
+  async function fetchOrgs() {
+    setLoadingList(true);
+    setListError(null);
+    const { data, error: err } = await supabase
+      .from('organizations')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('is_main', { ascending: false });
+
+    if (err) {
+      setListError(err.message);
+    } else {
+      setOrgs((data || []).map(orgFromDb));
+    }
+    setLoadingList(false);
+  }
 
   function openAdd() {
     setEditOrg(null);
     setForm(emptyOrg);
     setErrors({});
     setSubmitted(false);
+    setSaveError('');
     setActiveTab('requisites');
     setModalOpen(true);
   }
@@ -103,11 +167,11 @@ export default function OrganizationsPage() {
     setForm(org);
     setErrors({});
     setSubmitted(false);
+    setSaveError('');
     setActiveTab('requisites');
     setModalOpen(true);
   }
 
-  // Валидируем при каждом изменении поля (только после первой попытки сохранить)
   function setField(field, value) {
     const updated = { ...form, [field]: value };
     setForm(updated);
@@ -120,39 +184,88 @@ export default function OrganizationsPage() {
     if (submitted) setErrors(validate(updated));
   }
 
-  function handleSave() {
+  async function handleSave() {
     setSubmitted(true);
     const errs = validate(form);
     setErrors(errs);
-
-    // Если есть ошибки — блокируем сохранение
     if (Object.keys(errs).length > 0) return;
 
+    setSaving(true);
+    setSaveError('');
+
     if (editOrg) {
-      setOrgs(prev => prev.map(o => o.id === editOrg.id ? { ...form, id: editOrg.id } : o));
+      const { error: err } = await supabase
+        .from('organizations')
+        .update(orgToDb(form, user.id))
+        .eq('id', editOrg.id);
+
+      if (err) {
+        setSaveError(err.message);
+        setSaving(false);
+        return;
+      }
+      setOrgs(prev => prev.map(o => o.id === editOrg.id ? { ...orgFromDb({ ...orgToDb(form, user.id), id: editOrg.id, is_main: form.isMain }) } : o));
     } else {
-      setOrgs(prev => [...prev, { ...form, id: Date.now(), isMain: false }]);
+      const { data, error: err } = await supabase
+        .from('organizations')
+        .insert(orgToDb(form, user.id))
+        .select()
+        .single();
+
+      if (err) {
+        setSaveError(err.message);
+        setSaving(false);
+        return;
+      }
+      setOrgs(prev => [...prev, orgFromDb(data)]);
     }
+
+    setSaving(false);
     setModalOpen(false);
   }
 
-  function handleDelete(id) {
-    setOrgs(prev => prev.filter(o => o.id !== id));
+  async function handleDelete(id) {
+    const { error: err } = await supabase
+      .from('organizations')
+      .delete()
+      .eq('id', id);
+
+    if (err) {
+      alert(`Ошибка удаления: ${err.message}`);
+    } else {
+      setOrgs(prev => prev.filter(o => o.id !== id));
+    }
   }
 
-  function handleSetMain(id) {
-    setOrgs(prev => prev.map(o => ({ ...o, isMain: o.id === id })));
+  async function handleSetMain(id) {
+    // Снимаем is_main со всех организаций пользователя
+    await supabase
+      .from('organizations')
+      .update({ is_main: false })
+      .eq('user_id', user.id);
+
+    // Устанавливаем is_main для выбранной
+    const { error: err } = await supabase
+      .from('organizations')
+      .update({ is_main: true })
+      .eq('id', id);
+
+    if (err) {
+      alert(`Ошибка: ${err.message}`);
+    } else {
+      setOrgs(prev => prev.map(o => ({ ...o, isMain: o.id === id })));
+    }
   }
 
-  // Есть ли ошибки после попытки сохранить
   const hasErrors = submitted && Object.keys(errors).length > 0;
 
   return (
     <DashboardLayout title="Организации">
 
-      {/* Кнопка добавить */}
       <div className="flex justify-between items-center mb-5">
-        <p className="text-sm text-slate-500">{orgs.length} организаций</p>
+        <p className="text-sm text-slate-500">
+          {loadingList ? '...' : `${orgs.length} организаций`}
+        </p>
         <button
           onClick={openAdd}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
@@ -162,69 +275,87 @@ export default function OrganizationsPage() {
         </button>
       </div>
 
-      {/* Список карточек */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {orgs.map(org => (
-          <div
-            key={org.id}
-            className={`bg-white rounded-xl border p-5 relative ${
-              org.isMain ? 'border-blue-300 shadow-sm shadow-blue-100' : 'border-slate-200'
-            }`}
-          >
-            {org.isMain && (
-              <span className="absolute top-4 right-4 text-xs bg-blue-100 text-blue-700 font-semibold px-2.5 py-1 rounded-full flex items-center gap-1">
-                <Star size={11} className="fill-blue-600" />
-                Основная
-              </span>
-            )}
-
-            <div className="flex items-start gap-3 mb-4">
-              <div className="p-2.5 bg-slate-100 rounded-xl">
-                <Building2 size={20} className="text-slate-500" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-slate-800">{org.name}</h3>
-                <p className="text-xs text-slate-400 mt-0.5">ИНН: {org.inn}</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-slate-500 mb-4">
-              {org.kpp && <div><span className="text-slate-400">КПП:</span> {org.kpp}</div>}
-              {org.ogrn && <div><span className="text-slate-400">ОГРН:</span> {org.ogrn}</div>}
-              {org.phone && <div><span className="text-slate-400">Тел:</span> {org.phone}</div>}
-              {org.email && <div><span className="text-slate-400">Email:</span> {org.email}</div>}
-            </div>
-            {org.address && (
-              <p className="text-xs text-slate-400 mb-4 truncate">{org.address}</p>
-            )}
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => openEdit(org)}
-                className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-blue-600 border border-slate-200 px-3 py-1.5 rounded-lg hover:border-blue-300 transition-colors"
-              >
-                <Edit2 size={13} />
-                Редактировать
-              </button>
-              {!org.isMain && (
-                <button
-                  onClick={() => handleSetMain(org.id)}
-                  className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-amber-600 border border-slate-200 px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  <Star size={13} />
-                  Сделать основной
-                </button>
+      {/* Состояния загрузки / ошибки */}
+      {loadingList ? (
+        <div className="flex items-center justify-center gap-2 text-slate-400 py-16">
+          <Loader2 size={20} className="animate-spin" />
+          <span>Загрузка...</span>
+        </div>
+      ) : listError ? (
+        <div className="flex items-center justify-center gap-2 text-red-500 py-16">
+          <AlertCircle size={18} />
+          <span>{listError}</span>
+        </div>
+      ) : orgs.length === 0 ? (
+        <div className="text-center py-16 text-slate-400">
+          <Building2 size={40} className="mx-auto mb-3 text-slate-200" />
+          <p>Нет организаций. Добавьте первую!</p>
+        </div>
+      ) : (
+        /* Список карточек */
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {orgs.map(org => (
+            <div
+              key={org.id}
+              className={`bg-white rounded-xl border p-5 relative ${
+                org.isMain ? 'border-blue-300 shadow-sm shadow-blue-100' : 'border-slate-200'
+              }`}
+            >
+              {org.isMain && (
+                <span className="absolute top-4 right-4 text-xs bg-blue-100 text-blue-700 font-semibold px-2.5 py-1 rounded-full flex items-center gap-1">
+                  <Star size={11} className="fill-blue-600" />
+                  Основная
+                </span>
               )}
-              <button
-                onClick={() => handleDelete(org.id)}
-                className="ml-auto text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
-              >
-                <Trash2 size={15} />
-              </button>
+
+              <div className="flex items-start gap-3 mb-4">
+                <div className="p-2.5 bg-slate-100 rounded-xl">
+                  <Building2 size={20} className="text-slate-500" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-800">{org.name}</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">ИНН: {org.inn}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-slate-500 mb-4">
+                {org.kpp && <div><span className="text-slate-400">КПП:</span> {org.kpp}</div>}
+                {org.ogrn && <div><span className="text-slate-400">ОГРН:</span> {org.ogrn}</div>}
+                {org.phone && <div><span className="text-slate-400">Тел:</span> {org.phone}</div>}
+                {org.email && <div><span className="text-slate-400">Email:</span> {org.email}</div>}
+              </div>
+              {org.address && (
+                <p className="text-xs text-slate-400 mb-4 truncate">{org.address}</p>
+              )}
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => openEdit(org)}
+                  className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-blue-600 border border-slate-200 px-3 py-1.5 rounded-lg hover:border-blue-300 transition-colors"
+                >
+                  <Edit2 size={13} />
+                  Редактировать
+                </button>
+                {!org.isMain && (
+                  <button
+                    onClick={() => handleSetMain(org.id)}
+                    className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-amber-600 border border-slate-200 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <Star size={13} />
+                    Сделать основной
+                  </button>
+                )}
+                <button
+                  onClick={() => handleDelete(org.id)}
+                  className="ml-auto text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* ===== Модалка добавления/редактирования ===== */}
       <Modal
@@ -387,14 +518,18 @@ export default function OrganizationsPage() {
           </div>
         )}
 
-        {/* Общая подсказка об ошибках */}
+        {/* Ошибки валидации и серверная ошибка */}
         {hasErrors && (
           <p className="text-xs text-red-500 mt-4">
             Исправьте ошибки перед сохранением (проверьте все вкладки)
           </p>
         )}
+        {saveError && (
+          <p className="text-xs text-red-500 mt-4 flex items-center gap-1">
+            <AlertCircle size={13} /> {saveError}
+          </p>
+        )}
 
-        {/* Кнопки */}
         <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
           <button
             onClick={() => setModalOpen(false)}
@@ -404,9 +539,11 @@ export default function OrganizationsPage() {
           </button>
           <button
             onClick={handleSave}
-            className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={saving}
+            className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            Сохранить
+            {saving && <Loader2 size={14} className="animate-spin" />}
+            {saving ? 'Сохранение...' : 'Сохранить'}
           </button>
         </div>
       </Modal>

@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FileText, Eye, EyeOff, ExternalLink } from 'lucide-react';
+import { FileText, Eye, EyeOff, ExternalLink, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export default function LoginPage() {
@@ -15,8 +15,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     setError('');
 
@@ -25,9 +26,15 @@ export default function LoginPage() {
       return;
     }
 
-    // Имитация входа — любые данные принимаются
-    login(email, password);
-    navigate('/dashboard');
+    setLoading(true);
+    try {
+      await login(email, password);
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err.message || 'Неверный email или пароль');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -90,13 +97,13 @@ export default function LoginPage() {
               <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
             )}
 
-            {/* Кнопка входа — disabled пока поля не заполнены */}
             <button
               type="submit"
-              disabled={!email || !password}
-              className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!email || !password || loading}
+              className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Войти
+              {loading && <Loader2 size={16} className="animate-spin" />}
+              {loading ? 'Вход...' : 'Войти'}
             </button>
           </form>
 

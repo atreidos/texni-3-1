@@ -1,47 +1,99 @@
 // ============================================================
 // AuthContext — глобальное состояние авторизации
-// Имитирует работу с бэкендом через моковые данные
+// Использует Supabase Auth + таблицу profiles
 // ============================================================
 
-import { createContext, useContext, useState } from 'react';
-import { mockUser } from '../data/mockData';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
 
-// Создаём контекст
 const AuthContext = createContext(null);
 
-// Провайдер — оборачивает всё приложение (см. main.jsx)
 export function AuthProvider({ children }) {
-  // isLoggedIn — авторизован ли пользователь сейчас
-  // По умолчанию false — незарегистрированный пользователь
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // user — объект Supabase Auth (id, email, …)
+  // profile — строка из таблицы profiles (name, phone, plan, …)
+  // loading — идёт ли начальная проверка сессии
   const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Имитация входа: устанавливаем моковые данные пользователя
-  function login(email, password) {
-    setIsLoggedIn(true);
-    setUser(mockUser);
+  // Загружаем профиль из БД по userId
+  const fetchProfile = useCallback(async (userId) => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+    setProfile(data);
+  }, []);
+
+  useEffect(() => {
+    // Восстанавливаем сессию при старте приложения
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser(session.user);
+        setIsLoggedIn(true);
+        fetchProfile(session.user.id).finally(() => setLoading(false));
+      } else {
+        setLoading(false);
+      }
+    });
+
+    // Подписка на изменения состояния авторизации (вход / выход / обновление токена)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          setUser(session.user);
+          setIsLoggedIn(true);
+          await fetchProfile(session.user.id);
+        } else {
+          setUser(null);
+          setProfile(null);
+          setIsLoggedIn(false);
+        }
+        setLoading(false);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, [fetchProfile]);
+
+  // Вход — бросает ошибку при неудаче
+  async function login(email, password) {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
   }
 
-  // Имитация регистрации
-  function register(name, email, password) {
-    setIsLoggedIn(true);
-    setUser({ ...mockUser, name, email });
+  // Регистрация — передаём name через user_meta_data,
+  // триггер handle_new_user в БД создаст профиль автоматически
+  async function register(name, email, password) {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name } },
+    });
+    if (error) throw error;
   }
 
-  // Выход из системы
-  function logout() {
-    setIsLoggedIn(false);
-    setUser(null);
+  // Выход
+  async function logout() {
+    await supabase.auth.signOut();
+  }
+
+  // Позволяет обновить profile в контексте после изменений в SettingsPage
+  async function refreshProfile() {
+    if (user?.id) await fetchProfile(user.id);
   }
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, user, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ isLoggedIn, user, profile, loading, login, register, logout, refreshProfile }}
+    >
       {children}
     </AuthContext.Provider>
   );
 }
 
-// Хук для удобного использования контекста в компонентах
 export function useAuth() {
   return useContext(AuthContext);
 }

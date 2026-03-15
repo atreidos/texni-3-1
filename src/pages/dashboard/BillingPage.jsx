@@ -2,14 +2,80 @@
 // BillingPage — тариф и оплата /dashboard/billing
 // ============================================================
 
-import { useState } from 'react';
-import { CreditCard, CheckCircle, Clock } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { CreditCard, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import DashboardLayout from '../../components/DashboardLayout';
 import PricingCard from '../../components/PricingCard';
-import { mockPlans, mockPayments, mockUser } from '../../data/mockData';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
+import { mockPlans } from '../../data/mockData';
+
+const PLAN_LABELS = { free: 'Бесплатно', pro: 'Про', business: 'Бизнес' };
+
+// Форматируем дату оплаты
+function formatDate(iso) {
+  if (!iso) return '—';
+  return iso.split('T')[0];
+}
+
+// Статус платежа → метка
+function PaymentStatusBadge({ status }) {
+  if (status === 'success') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full">
+        <CheckCircle size={12} />
+        Оплачен
+      </span>
+    );
+  }
+  if (status === 'pending') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs bg-yellow-100 text-yellow-700 px-2.5 py-1 rounded-full">
+        Ожидает
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs bg-red-100 text-red-700 px-2.5 py-1 rounded-full">
+      Ошибка
+    </span>
+  );
+}
 
 export default function BillingPage() {
+  const { user, profile } = useAuth();
   const [showCardForm, setShowCardForm] = useState(false);
+
+  const [payments, setPayments] = useState([]);
+  const [loadingPayments, setLoadingPayments] = useState(true);
+  const [paymentsError, setPaymentsError] = useState(null);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    async function fetchPayments() {
+      setLoadingPayments(true);
+      setPaymentsError(null);
+      const { data, error: err } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (err) {
+        setPaymentsError(err.message);
+      } else {
+        setPayments(data || []);
+      }
+      setLoadingPayments(false);
+    }
+
+    fetchPayments();
+  }, [user?.id]);
+
+  const docsUsed = profile?.docs_used ?? 0;
+  const docsLimit = profile?.docs_limit ?? 1;
+  const plan = profile?.plan ?? 'free';
 
   return (
     <DashboardLayout title="Тариф и оплата">
@@ -20,23 +86,30 @@ export default function BillingPage() {
           <div>
             <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Текущий тариф</p>
             <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-slate-800">Про</h2>
+              <h2 className="text-2xl font-bold text-slate-800">
+                {PLAN_LABELS[plan] ?? '—'}
+              </h2>
               <span className="text-xs font-bold bg-gradient-to-r from-blue-500 to-purple-500 text-white px-2.5 py-1 rounded-full">
-                PRO
+                {plan.toUpperCase()}
               </span>
             </div>
-            <p className="text-sm text-slate-500 mt-1">Действует до: <strong>{mockUser.planExpires}</strong></p>
+            {profile?.plan_expires && (
+              <p className="text-sm text-slate-500 mt-1">
+                Действует до: <strong>{profile.plan_expires}</strong>
+              </p>
+            )}
           </div>
+
           {/* Использование */}
           <div className="min-w-48">
             <p className="text-xs text-slate-400 mb-2">Документов использовано</p>
             <div className="h-2.5 bg-slate-100 rounded-full mb-1">
               <div
                 className="h-full bg-blue-500 rounded-full"
-                style={{ width: `${(mockUser.docsUsed / mockUser.docsLimit) * 100}%` }}
+                style={{ width: `${Math.min((docsUsed / docsLimit) * 100, 100)}%` }}
               />
             </div>
-            <p className="text-xs text-slate-500">{mockUser.docsUsed} из {mockUser.docsLimit}</p>
+            <p className="text-xs text-slate-500">{docsUsed} из {docsLimit}</p>
           </div>
         </div>
       </div>
@@ -44,8 +117,8 @@ export default function BillingPage() {
       {/* Карточки тарифов */}
       <h2 className="text-lg font-semibold text-slate-800 mb-4">Изменить тариф</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        {mockPlans.map(plan => (
-          <PricingCard key={plan.id} plan={plan} currentPlan={mockUser.plan} />
+        {mockPlans.map(p => (
+          <PricingCard key={p.id} plan={p} currentPlan={plan} />
         ))}
       </div>
 
@@ -61,7 +134,6 @@ export default function BillingPage() {
           </button>
         </div>
 
-        {/* Существующая карта (заглушка) */}
         <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
           <CreditCard size={20} className="text-slate-400" />
           <div>
@@ -71,11 +143,10 @@ export default function BillingPage() {
           <span className="ml-auto text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Основная</span>
         </div>
 
-        {/* Форма добавления карты (заглушка) */}
         {showCardForm && (
           <div className="mt-4 p-4 border border-slate-200 rounded-xl space-y-3">
             <p className="text-sm text-slate-500 text-center py-4">
-              Форма оплаты (заглушка — здесь будет интеграция с платёжным сервисом)
+              Форма оплаты (здесь будет интеграция с платёжным сервисом)
             </p>
           </div>
         )}
@@ -86,31 +157,43 @@ export default function BillingPage() {
         <div className="px-5 py-4 border-b border-slate-100">
           <h3 className="font-semibold text-slate-800">История платежей</h3>
         </div>
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-slate-50 bg-slate-50">
-              <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Дата</th>
-              <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Тариф</th>
-              <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Сумма</th>
-              <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Статус</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50">
-            {mockPayments.map(p => (
-              <tr key={p.id} className="hover:bg-slate-50">
-                <td className="px-5 py-3 text-sm text-slate-600">{p.date}</td>
-                <td className="px-5 py-3 text-sm text-slate-600">{p.plan}</td>
-                <td className="px-5 py-3 text-sm font-medium text-slate-800">{p.amount} ₽</td>
-                <td className="px-5 py-3">
-                  <span className="inline-flex items-center gap-1.5 text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full">
-                    <CheckCircle size={12} />
-                    Оплачен
-                  </span>
-                </td>
+
+        {loadingPayments ? (
+          <div className="py-12 flex items-center justify-center gap-2 text-slate-400">
+            <Loader2 size={18} className="animate-spin" />
+            <span>Загрузка...</span>
+          </div>
+        ) : paymentsError ? (
+          <div className="py-12 flex items-center justify-center gap-2 text-red-500">
+            <AlertCircle size={16} />
+            <span>{paymentsError}</span>
+          </div>
+        ) : payments.length === 0 ? (
+          <div className="py-12 text-center text-slate-400 text-sm">История платежей пуста</div>
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-slate-50 bg-slate-50">
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Дата</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Тариф</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Сумма</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Статус</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {payments.map(p => (
+                <tr key={p.id} className="hover:bg-slate-50">
+                  <td className="px-5 py-3 text-sm text-slate-600">{formatDate(p.paid_at ?? p.created_at)}</td>
+                  <td className="px-5 py-3 text-sm text-slate-600">{PLAN_LABELS[p.plan] ?? p.plan}</td>
+                  <td className="px-5 py-3 text-sm font-medium text-slate-800">{Number(p.amount).toLocaleString('ru-RU')} ₽</td>
+                  <td className="px-5 py-3">
+                    <PaymentStatusBadge status={p.status} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </DashboardLayout>
   );

@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Header() {
-  const { isLoggedIn, user, logout } = useAuth();
+  const { isLoggedIn, profile, logout } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -44,7 +44,7 @@ export default function Header() {
                   to="/dashboard"
                   className="text-sm text-slate-600 hover:text-blue-600 transition-colors"
                 >
-                  {user?.name}
+                  {profile?.name}
                 </Link>
                 <button
                   onClick={handleLogout}

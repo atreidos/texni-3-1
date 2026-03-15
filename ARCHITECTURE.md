@@ -1,11 +1,13 @@
-# ARCHITECTURE.md — DocFlow Frontend V1
+# ARCHITECTURE.md — DocFlow Frontend
 
 ## Стек
-- **Vite** — сборщик, dev-сервер
+
+- **Vite 7** — сборщик, dev-сервер
 - **React 19** — UI-библиотека
-- **React Router DOM v7** — маршрутизация (client-side)
-- **Tailwind CSS v4** — утилитарные стили
+- **React Router DOM 7** — маршрутизация (client-side)
+- **Tailwind CSS 4** — утилитарные стили
 - **Lucide React** — иконки
+- **@supabase/supabase-js** — клиент Supabase (Auth + PostgreSQL)
 
 ---
 
@@ -13,74 +15,119 @@
 
 ```
 src/
-├── main.jsx               # Точка входа. BrowserRouter + AuthProvider + App
-├── App.jsx                # Все маршруты приложения (Routes/Route)
+├── main.jsx               # Точка входа: BrowserRouter + AuthProvider + App
+├── App.jsx                # Маршруты + PrivateRoute (проверяет loading → isLoggedIn)
 ├── index.css              # Tailwind @import + базовые стили
 │
+├── lib/
+│   └── supabase.js        # Supabase client (singleton), читает VITE_SUPABASE_* из .env
+│
 ├── context/
-│   └── AuthContext.jsx    # Глобальное состояние авторизации (isLoggedIn, user, login, logout)
+│   └── AuthContext.jsx    # Глобальный auth: user (Supabase), profile (из таблицы profiles),
+│                          # isLoggedIn, loading, login/register/logout/refreshProfile
 │
 ├── data/
-│   └── mockData.js        # Все моковые данные: пользователь, документы, организации, тарифы
+│   └── mockData.js        # СТАТИЧЕСКИЕ данные: mockPlans, mockTestimonials, mockDocumentFields
+│                          # (тарифы, отзывы, поля редактора — не персональные, не в БД)
 │
-├── components/            # Переиспользуемые компоненты
-│   ├── Header.jsx         # Шапка публичных страниц (лого, навигация, кнопки входа)
-│   ├── Sidebar.jsx        # Боковая навигация личного кабинета
-│   ├── DashboardLayout.jsx # Обёртка = Sidebar + шапка ЛК + main-область
-│   ├── Modal.jsx          # Универсальное модальное окно (isOpen, onClose, title, size)
-│   ├── FileUploader.jsx   # Drag-and-drop зона загрузки файлов
-│   ├── PricingCard.jsx    # Карточка тарифного плана
-│   ├── StatusBadge.jsx    # Бейдж статуса документа (черновик/заполнен/подписан)
-│   └── ProBadge.jsx       # Маленький бейдж «PRO» для платных функций
+├── components/
+│   ├── Header.jsx         # Публичная шапка; использует profile?.name
+│   ├── Sidebar.jsx        # Навигация ЛК
+│   ├── DashboardLayout.jsx # Обёртка: Sidebar + шапка ЛК; использует profile?.name
+│   ├── Modal.jsx          # Универсальный модальный компонент
+│   ├── FileUploader.jsx   # Drag-and-drop загрузка .docx/.pdf
+│   ├── PricingCard.jsx    # Карточка тарифа
+│   ├── StatusBadge.jsx    # Бейдж статуса документа
+│   └── ProBadge.jsx       # Бейдж «PRO»
 │
-├── pages/
-│   ├── LandingPage.jsx    # / — Hero, Возможности, Как работает, Тарифы, Отзывы, Footer
-│   ├── EditorPage.jsx     # /editor — загрузка файла → split-view редактор
-│   ├── PricingPage.jsx    # /pricing — тарифы + таблица сравнения + FAQ
-│   ├── NotFoundPage.jsx   # * — страница 404
-│   │
-│   ├── auth/
-│   │   ├── LoginPage.jsx          # /auth/login
-│   │   ├── RegisterPage.jsx       # /auth/register
-│   │   └── ForgotPasswordPage.jsx # /auth/forgot-password
-│   │
-│   └── dashboard/
-│       ├── DashboardPage.jsx      # /dashboard — обзор, быстрые действия
-│       ├── DocumentsPage.jsx      # /dashboard/documents — список, фильтры, поиск
-│       ├── OrganizationsPage.jsx  # /dashboard/organizations — карточки + модалка
-│       ├── SignaturePage.jsx      # /dashboard/signature — ЭЦП: подписать / проверить
-│       ├── BillingPage.jsx        # /dashboard/billing — тариф, платежи
-│       └── SettingsPage.jsx       # /dashboard/settings — профиль, пароль, уведомления
+└── pages/
+    ├── LandingPage.jsx    # / — публичная; данные: mockTestimonials, mockPlans (статика)
+    ├── EditorPage.jsx     # /editor — публичная; данные: mockDocumentFields (статика)
+    ├── PricingPage.jsx    # /pricing — публичная; данные: mockPlans (статика)
+    ├── NotFoundPage.jsx   # 404
+    │
+    ├── auth/
+    │   ├── LoginPage.jsx          # supabase.auth.signInWithPassword; loading + error state
+    │   ├── RegisterPage.jsx       # supabase.auth.signUp; loading + error state
+    │   └── ForgotPasswordPage.jsx # (пока заглушка)
+    │
+    └── dashboard/
+        ├── DashboardPage.jsx      # fetch documents + organizations join; profile из контекста
+        ├── DocumentsPage.jsx      # fetch documents + organizations join; delete
+        ├── OrganizationsPage.jsx  # полный CRUD: fetch/insert/update/delete; маппинг DB ↔ форма
+        ├── SignaturePage.jsx      # (пока заглушка)
+        ├── BillingPage.jsx        # fetch payments; profile из контекста
+        └── SettingsPage.jsx       # update profiles; supabase.auth.updateUser (пароль)
 ```
 
 ---
 
 ## Логика авторизации
 
-Контекст `AuthContext` хранит два поля:
-- `isLoggedIn: boolean` — авторизован ли пользователь
-- `user: object | null` — данные пользователя
+`AuthContext` управляет всем жизненным циклом сессии:
 
-**Функции:**
-- `login(email, password)` — устанавливает моковые данные пользователя
-- `register(name, email, password)` — регистрация с моковыми данными
-- `logout()` — сбрасывает состояние
+| Поле / метод | Тип | Описание |
+|---|---|---|
+| `user` | Supabase User | объект сессии (`id`, `email`, …) |
+| `profile` | Row из `profiles` | `name`, `phone`, `plan`, `docs_used`, … |
+| `isLoggedIn` | boolean | `true` при активной сессии |
+| `loading` | boolean | `true` пока идёт начальная проверка сессии |
+| `login(email, pw)` | async | `signInWithPassword`, бросает ошибку при неудаче |
+| `register(name, email, pw)` | async | `signUp` + передаём `name` в `user_meta_data` |
+| `logout()` | async | `signOut` |
+| `refreshProfile()` | async | перечитывает профиль из БД (после обновлений) |
 
-**Защита маршрутов:**  
-Компонент `PrivateRoute` в App.jsx: если `isLoggedIn === false` → редирект на `/auth/login`.
+**Восстановление сессии:**  
+При старте приложения `getSession()` + `onAuthStateChange` восстанавливают сессию из localStorage — перезагрузка страницы не разлогинивает пользователя.
+
+**PrivateRoute:**  
+Пока `loading === true` — рендерит `null` (не редиректит).  
+Когда `loading === false && isLoggedIn === false` — редирект на `/auth/login`.
 
 ---
 
-## Логика доступа
+## Слой данных: Supabase
 
-| Возможность | Без регистрации | Авторизован | PRO-тариф |
-|-------------|:-:|:-:|:-:|
-| Редактор документа | ✅ | ✅ | ✅ |
-| Скачать документ | ✅ | ✅ | ✅ |
-| Сохранить в ЛК | ❌ | ✅ | ✅ |
-| ЭЦП | ❌ | ✅ | ✅ |
-| Организации | ❌ | ✅ | ✅ |
-| ИИ-заполнение | ❌ | ❌ | ✅ |
+### Откуда берётся что
+
+| Данные | Источник | Таблица / API |
+|--------|----------|---------------|
+| Сессия, токен | Supabase Auth | `auth.users` |
+| Профиль (имя, план, лимиты) | `AuthContext.profile` | `profiles` |
+| Документы | fetch при монтировании | `documents` JOIN `organizations` |
+| Организации | fetch при монтировании | `organizations` |
+| История платежей | fetch при монтировании | `payments` |
+| Тарифы (описание) | `mockData.js` | статика на фронте |
+| Поля редактора | `mockData.js` | статика на фронте |
+| Отзывы | `mockData.js` | статика на фронте |
+
+### Маппинг organizations (БД ↔ форма)
+
+Банковские данные хранятся в плоских колонках БД:
+
+| Форма (camelCase) | БД (snake_case) |
+|---|---|
+| `isMain` | `is_main` |
+| `bank.bik` | `bank_bik` |
+| `bank.bankName` | `bank_name` |
+| `bank.checkingAccount` | `checking_account` |
+| `bank.correspondentAccount` | `correspondent_account` |
+
+Функции `orgFromDb()` и `orgToDb()` в `OrganizationsPage.jsx` инкапсулируют этот маппинг.
+
+### loading / error states
+
+Каждая страница с async-данными:
+- При загрузке показывает спиннер (`<Loader2 className="animate-spin" />`) с текстом «Загрузка...»
+- При ошибке показывает `<AlertCircle />` + текст ошибки из Supabase
+- Кнопки «Сохранить» блокируются (`disabled`) во время запроса
+
+---
+
+## Правило авторизации для write-операций
+
+Все `POST / PUT / PATCH / DELETE` запросы выполняются только при `isLoggedIn === true`.  
+RLS на стороне Supabase дублирует эту защиту независимо от фронтенда.
 
 ---
 
@@ -88,8 +135,8 @@ src/
 
 | Путь | Страница | Доступ |
 |------|----------|--------|
-| `/` | Главная (лендинг) | Все |
-| `/editor` | Редактор документа | Все |
+| `/` | Лендинг | Все |
+| `/editor` | Редактор | Все |
 | `/pricing` | Тарифы | Все |
 | `/auth/login` | Вход | Все |
 | `/auth/register` | Регистрация | Все |
@@ -104,50 +151,23 @@ src/
 
 ---
 
-## Моковые данные (src/data/mockData.js)
-
-Файл содержит:
-- `mockUser` — текущий пользователь (тариф PRO)
-- `mockDocuments` — 5 документов разных статусов
-- `mockOrganizations` — 2 организации (ООО и ИП)
-- `mockPlans` — 3 тарифных плана (Бесплатно / Про / Бизнес)
-- `mockPayments` — история платежей
-- `mockDocumentFields` — поля документа (автоопределённые)
-- `mockTestimonials` — отзывы клиентов
-
-Всё это будет заменено на API-запросы при подключении бэкенда.
-
----
-
 ## Схема базы данных (Supabase / PostgreSQL)
 
 Готовый SQL-скрипт: **[SQL.md](./SQL.md)**
 
 ### Таблицы
 
-| Таблица | PK | Связи | Описание |
-|---------|-----|-------|----------|
-| `profiles` | `id` (FK → `auth.users`) | — | Профиль пользователя: имя, телефон, аватар, тариф (`free`/`pro`/`business`), счётчик документов |
-| `organizations` | `uuid` | `user_id → auth.users` | Организации (ООО/ИП): реквизиты (ИНН, КПП, ОГРН) + банковские данные |
-| `documents` | `uuid` | `user_id → auth.users`, `organization_id → organizations` | Документы PDF/DOCX: статус (`draft`/`filled`/`signed`), путь к файлу в Storage |
-| `document_fields` | `uuid` | `document_id → documents` | Поля документа (ключ-значение): группа (`organization`/`contractor`/`other`), тип (`text`/`date`/`number`) |
-| `payments` | `uuid` | `user_id → auth.users` | История платежей: тариф, сумма, статус (`success`/`pending`/`failed`) |
-
-### Вспомогательные функции
-
-| Функция | Возвращает | Назначение |
-|---------|-----------|------------|
-| `current_user_id()` | `uuid` | Алиас для `auth.uid()` |
-| `current_user_plan()` | `text` | Тариф текущего пользователя |
-| `has_plan(text[])` | `boolean` | Проверка тарифа (например `has_plan(ARRAY['pro','business'])`) |
-| `handle_updated_at()` | trigger | Автообновление `updated_at` |
-| `handle_new_user()` | trigger | Создание профиля при регистрации |
-| `handle_docs_used_counter()` | trigger | Обновление счётчика `docs_used` в профиле |
+| Таблица | PK | Ключевые поля | Описание |
+|---------|-----|---------------|----------|
+| `profiles` | `id` (FK → `auth.users`) | `name`, `plan`, `docs_used`, `docs_limit` | Профиль; создаётся триггером при регистрации |
+| `organizations` | `uuid` | `user_id`, `inn`, `ogrn`, `is_main`, `bank_*` | Реквизиты организаций пользователя |
+| `documents` | `uuid` | `user_id`, `organization_id`, `name`, `type`, `status`, `size_bytes` | Документы |
+| `document_fields` | `uuid` | `document_id`, `field_key`, `group_name`, `value` | Поля документа (ключ-значение) |
+| `payments` | `uuid` | `user_id`, `plan`, `amount`, `status`, `paid_at` | История платежей (INSERT только через service_role) |
 
 ### Ключевые архитектурные решения БД
 
-- **RLS включён на всех таблицах** — анонимный пользователь не имеет доступа к данным в БД.
+- **RLS включён на всех таблицах** — аноним не имеет доступа к данным.
 - **`payments` INSERT только через `service_role`** — платёж создаётся бэкендом после подтверждения платёжного шлюза.
 - **`docs_used` обновляется триггером** — автоматически при INSERT/DELETE в `documents`.
-- **ИИ-заполнение** — проверка тарифа `has_plan(ARRAY['pro','business'])` на уровне API-endpoint, не RLS.
-- **`organization_id` при INSERT в `documents`** — RLS проверяет, что организация принадлежит тому же пользователю.
+- **`handle_new_user()`** — триггер на `auth.users` создаёт строку в `profiles` при регистрации.

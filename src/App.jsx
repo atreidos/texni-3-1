@@ -39,10 +39,11 @@ import SignaturePage from './pages/dashboard/SignaturePage';
 import BillingPage from './pages/dashboard/BillingPage';
 import SettingsPage from './pages/dashboard/SettingsPage';
 
-// Компонент-обёртка для защищённых маршрутов (только для авторизованных)
+// Компонент-обёртка для защищённых маршрутов
+// Пока идёт проверка сессии — рендерим пустой экран, не редиректим
 function PrivateRoute({ children }) {
-  const { isLoggedIn } = useAuth();
-  // Если не авторизован — перенаправляем на страницу входа
+  const { isLoggedIn, loading } = useAuth();
+  if (loading) return null;
   return isLoggedIn ? children : <Navigate to="/auth/login" replace />;
 }
 

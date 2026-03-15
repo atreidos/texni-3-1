@@ -1,3 +1,8 @@
+# Секреты — никогда не коммитить
+.env
+.env.local
+.env.*.local
+
 # Logs
 logs
 *.log
@@ -22,3 +27,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Базы данных (SQL и локальные дампы)
+*.sqlite
+*.db
+*.sql.gz
+*.7z
+
+
+# Cursor settings
+.cursor/
+.cursorignore

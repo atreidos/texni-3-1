@@ -9,7 +9,7 @@ import Sidebar from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 
 export default function DashboardLayout({ children, title }) {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const navigate = useNavigate();
 
   return (
@@ -38,9 +38,9 @@ export default function DashboardLayout({ children, title }) {
             {/* Аватар с именем */}
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-semibold">
-                {user?.name?.charAt(0) || 'U'}
+                {profile?.name?.charAt(0) || 'U'}
               </div>
-              <span className="text-sm text-slate-600">{user?.name}</span>
+              <span className="text-sm text-slate-600">{profile?.name}</span>
             </div>
           </div>
         </header>

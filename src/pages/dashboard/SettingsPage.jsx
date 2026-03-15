@@ -2,42 +2,91 @@
 // SettingsPage — настройки профиля /dashboard/settings
 // ============================================================
 
-import { useState } from 'react';
-import { Camera, AlertTriangle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Camera, AlertTriangle, Loader2, AlertCircle } from 'lucide-react';
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
-import { mockUser } from '../../data/mockData';
+import { supabase } from '../../lib/supabase';
 
 export default function SettingsPage() {
-  const { user, logout } = useAuth();
-  const [profile, setProfile] = useState({
-    name: mockUser.name,
-    email: mockUser.email,
-    phone: mockUser.phone,
-  });
+  const { user, profile, logout, refreshProfile } = useAuth();
+
+  const [profileForm, setProfileForm] = useState({ name: '', email: '', phone: '' });
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState('');
+
+  const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' });
+  const [pwSaved, setPwSaved] = useState(false);
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwError, setPwError] = useState('');
+
   const [notifications, setNotifications] = useState({
     docReady: true,
     signExpiry: true,
     billing: false,
     news: false,
   });
-  const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' });
-  const [profileSaved, setProfileSaved] = useState(false);
-  const [pwSaved, setPwSaved] = useState(false);
 
-  function handleProfileSave(e) {
+  // Инициализируем форму из профиля после его загрузки
+  useEffect(() => {
+    if (profile) {
+      setProfileForm({
+        name: profile.name ?? '',
+        email: profile.email ?? '',
+        phone: profile.phone ?? '',
+      });
+    }
+  }, [profile]);
+
+  async function handleProfileSave(e) {
     e.preventDefault();
-    setProfileSaved(true);
-    setTimeout(() => setProfileSaved(false), 2000);
+    setProfileError('');
+    setProfileSaving(true);
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        name: profileForm.name,
+        email: profileForm.email,
+        phone: profileForm.phone || null,
+      })
+      .eq('id', user.id);
+
+    if (error) {
+      setProfileError(error.message);
+    } else {
+      await refreshProfile();
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 2500);
+    }
+    setProfileSaving(false);
   }
 
-  function handlePasswordSave(e) {
+  async function handlePasswordSave(e) {
     e.preventDefault();
-    if (passwords.next === passwords.confirm && passwords.next.length >= 6) {
+    setPwError('');
+
+    if (passwords.next !== passwords.confirm) {
+      setPwError('Пароли не совпадают');
+      return;
+    }
+    if (passwords.next.length < 6) {
+      setPwError('Минимум 6 символов');
+      return;
+    }
+
+    setPwSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: passwords.next });
+
+    if (error) {
+      setPwError(error.message);
+    } else {
       setPwSaved(true);
       setPasswords({ current: '', next: '', confirm: '' });
-      setTimeout(() => setPwSaved(false), 2000);
+      setTimeout(() => setPwSaved(false), 2500);
     }
+    setPwSaving(false);
   }
 
   return (
@@ -52,14 +101,14 @@ export default function SettingsPage() {
           <div className="flex items-center gap-4 mb-5">
             <div className="relative">
               <div className="w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center text-2xl font-bold">
-                {profile.name.charAt(0)}
+                {profileForm.name.charAt(0) || 'U'}
               </div>
               <button className="absolute bottom-0 right-0 p-1 bg-white border border-slate-200 rounded-full shadow-sm hover:bg-slate-50">
                 <Camera size={12} className="text-slate-500" />
               </button>
             </div>
             <div>
-              <p className="font-medium text-slate-800">{profile.name}</p>
+              <p className="font-medium text-slate-800">{profileForm.name || '—'}</p>
               <p className="text-sm text-slate-400">Изменить фото</p>
             </div>
           </div>
@@ -70,8 +119,8 @@ export default function SettingsPage() {
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Имя</label>
                 <input
                   type="text"
-                  value={profile.name}
-                  onChange={e => setProfile(p => ({ ...p, name: e.target.value }))}
+                  value={profileForm.name}
+                  onChange={e => setProfileForm(p => ({ ...p, name: e.target.value }))}
                   className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -79,8 +128,8 @@ export default function SettingsPage() {
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Телефон</label>
                 <input
                   type="tel"
-                  value={profile.phone}
-                  onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))}
+                  value={profileForm.phone}
+                  onChange={e => setProfileForm(p => ({ ...p, phone: e.target.value }))}
                   className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -89,17 +138,26 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
               <input
                 type="email"
-                value={profile.email}
-                onChange={e => setProfile(p => ({ ...p, email: e.target.value }))}
+                value={profileForm.email}
+                onChange={e => setProfileForm(p => ({ ...p, email: e.target.value }))}
                 className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+
+            {profileError && (
+              <p className="text-sm text-red-500 flex items-center gap-1.5">
+                <AlertCircle size={14} /> {profileError}
+              </p>
+            )}
+
             <div className="flex items-center gap-3">
               <button
                 type="submit"
-                className="bg-blue-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
+                disabled={profileSaving}
+                className="bg-blue-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                Сохранить
+                {profileSaving && <Loader2 size={14} className="animate-spin" />}
+                {profileSaving ? 'Сохранение...' : 'Сохранить'}
               </button>
               {profileSaved && <span className="text-sm text-green-600">✓ Сохранено</span>}
             </div>
@@ -126,19 +184,28 @@ export default function SettingsPage() {
                 />
               </div>
             ))}
+
+            {pwError && (
+              <p className="text-sm text-red-500 flex items-center gap-1.5">
+                <AlertCircle size={14} /> {pwError}
+              </p>
+            )}
+
             <div className="flex items-center gap-3">
               <button
                 type="submit"
-                className="bg-slate-800 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-slate-900 transition-colors"
+                disabled={pwSaving}
+                className="bg-slate-800 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-slate-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                Изменить пароль
+                {pwSaving && <Loader2 size={14} className="animate-spin" />}
+                {pwSaving ? 'Изменение...' : 'Изменить пароль'}
               </button>
               {pwSaved && <span className="text-sm text-green-600">✓ Пароль изменён</span>}
             </div>
           </form>
         </div>
 
-        {/* ===== Уведомления ===== */}
+        {/* ===== Уведомления (UI-only, без БД) ===== */}
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <h2 className="font-semibold text-slate-800 mb-5">Уведомления</h2>
           <div className="space-y-3">

@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FileText, Eye, EyeOff } from 'lucide-react';
+import { FileText, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export default function RegisterPage() {
@@ -15,6 +15,8 @@ export default function RegisterPage() {
   const [agreed, setAgreed] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const [errors, setErrors] = useState({});
+  const [serverError, setServerError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   function validate() {
     const e = {};
@@ -30,15 +32,24 @@ export default function RegisterPage() {
     return (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
+    setServerError('');
     const e2 = validate();
     if (Object.keys(e2).length > 0) {
       setErrors(e2);
       return;
     }
-    register(form.name, form.email, form.password);
-    navigate('/dashboard');
+    setLoading(true);
+    try {
+      await register(form.name, form.email, form.password);
+      // Supabase может потребовать подтверждение email — показываем сообщение
+      navigate('/dashboard');
+    } catch (err) {
+      setServerError(err.message || 'Ошибка регистрации');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -138,12 +149,17 @@ export default function RegisterPage() {
               {errors.agreed && <p className="text-xs text-red-500 mt-1">{errors.agreed}</p>}
             </div>
 
-            {/* Кнопка */}
+            {serverError && (
+              <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{serverError}</p>
+            )}
+
             <button
               type="submit"
-              className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+              disabled={loading}
+              className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Создать аккаунт
+              {loading && <Loader2 size={16} className="animate-spin" />}
+              {loading ? 'Создаём аккаунт...' : 'Создать аккаунт'}
             </button>
           </form>
         </div>
