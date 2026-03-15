@@ -116,3 +116,38 @@ src/
 - `mockTestimonials` — отзывы клиентов
 
 Всё это будет заменено на API-запросы при подключении бэкенда.
+
+---
+
+## Схема базы данных (Supabase / PostgreSQL)
+
+Готовый SQL-скрипт: **[SQL.md](./SQL.md)**
+
+### Таблицы
+
+| Таблица | PK | Связи | Описание |
+|---------|-----|-------|----------|
+| `profiles` | `id` (FK → `auth.users`) | — | Профиль пользователя: имя, телефон, аватар, тариф (`free`/`pro`/`business`), счётчик документов |
+| `organizations` | `uuid` | `user_id → auth.users` | Организации (ООО/ИП): реквизиты (ИНН, КПП, ОГРН) + банковские данные |
+| `documents` | `uuid` | `user_id → auth.users`, `organization_id → organizations` | Документы PDF/DOCX: статус (`draft`/`filled`/`signed`), путь к файлу в Storage |
+| `document_fields` | `uuid` | `document_id → documents` | Поля документа (ключ-значение): группа (`organization`/`contractor`/`other`), тип (`text`/`date`/`number`) |
+| `payments` | `uuid` | `user_id → auth.users` | История платежей: тариф, сумма, статус (`success`/`pending`/`failed`) |
+
+### Вспомогательные функции
+
+| Функция | Возвращает | Назначение |
+|---------|-----------|------------|
+| `current_user_id()` | `uuid` | Алиас для `auth.uid()` |
+| `current_user_plan()` | `text` | Тариф текущего пользователя |
+| `has_plan(text[])` | `boolean` | Проверка тарифа (например `has_plan(ARRAY['pro','business'])`) |
+| `handle_updated_at()` | trigger | Автообновление `updated_at` |
+| `handle_new_user()` | trigger | Создание профиля при регистрации |
+| `handle_docs_used_counter()` | trigger | Обновление счётчика `docs_used` в профиле |
+
+### Ключевые архитектурные решения БД
+
+- **RLS включён на всех таблицах** — анонимный пользователь не имеет доступа к данным в БД.
+- **`payments` INSERT только через `service_role`** — платёж создаётся бэкендом после подтверждения платёжного шлюза.
+- **`docs_used` обновляется триггером** — автоматически при INSERT/DELETE в `documents`.
+- **ИИ-заполнение** — проверка тарифа `has_plan(ARRAY['pro','business'])` на уровне API-endpoint, не RLS.
+- **`organization_id` при INSERT в `documents`** — RLS проверяет, что организация принадлежит тому же пользователю.
