@@ -23,6 +23,14 @@ VITE_SUPABASE_URL=https://your-project-id.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key-here
 ```
 
+Опционально — вывод ошибок на экран (для отладки белого экрана и т.п.):
+
+```env
+VITE_SHOW_ERRORS=true
+```
+
+При `VITE_SHOW_ERRORS=true` ошибки рендера и необработанные промисы показываются в UI. В продакшене оставьте переменную выключенной или не задавайте.
+
 Где взять значения:
 - Откройте [supabase.com](https://supabase.com) → ваш проект → **Settings → API**
 - `VITE_SUPABASE_URL` — поле **Project URL**
@@ -61,11 +69,12 @@ npm run dev
 
 ```
 src/
+├── config.js                # Конфиг (в т.ч. VITE_SHOW_ERRORS для вывода ошибок на экран)
 ├── lib/
 │   └── supabase.js          # Supabase client (singleton)
 ├── context/
 │   └── AuthContext.jsx      # Auth state + profile из БД
-├── components/              # Переиспользуемые компоненты
+├── components/               # ErrorBoundary, UnhandledRejectionHandler, Header, Sidebar, …
 ├── pages/
 │   ├── auth/                # Вход, регистрация, восстановление пароля
 │   └── dashboard/           # Личный кабинет (документы, орги, биллинг, настройки)

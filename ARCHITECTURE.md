@@ -15,9 +15,10 @@
 
 ```
 src/
-├── main.jsx               # Точка входа: BrowserRouter + AuthProvider + App
+├── main.jsx               # Точка входа: ErrorBoundary + UnhandledRejectionHandler + BrowserRouter + AuthProvider + App
 ├── App.jsx                # Маршруты + PrivateRoute (проверяет loading → isLoggedIn)
 ├── index.css              # Tailwind @import + базовые стили
+├── config.js              # Конфиг из .env: showErrorsOnScreen (VITE_SHOW_ERRORS)
 │
 ├── lib/
 │   └── supabase.js        # Supabase client (singleton), читает VITE_SUPABASE_* из .env
@@ -31,6 +32,8 @@ src/
 │                          # (тарифы, отзывы, поля редактора — не персональные, не в БД)
 │
 ├── components/
+│   ├── ErrorBoundary.jsx  # Перехват ошибок рендера React; при VITE_SHOW_ERRORS=true — вывод на экран
+│   ├── UnhandledRejectionHandler.jsx # Показ необработанных ошибок промисов (при VITE_SHOW_ERRORS=true)
 │   ├── Header.jsx         # Публичная шапка; использует profile?.name
 │   ├── Sidebar.jsx        # Навигация ЛК
 │   ├── DashboardLayout.jsx # Обёртка: Sidebar + шапка ЛК; использует profile?.name
@@ -83,6 +86,19 @@ src/
 **PrivateRoute:**  
 Пока `loading === true` — рендерит `null` (не редиректит).  
 Когда `loading === false && isLoggedIn === false` — редирект на `/auth/login`.
+
+---
+
+## Вывод ошибок на экран (отладка)
+
+Чтобы видеть причину белого экрана или падений после обновления страницы:
+
+- В **.env** задайте `VITE_SHOW_ERRORS=true` (или `VITE_SHOW_ERRORS=1`).
+- Конфиг читается в **src/config.js** (`showErrorsOnScreen`).
+- **ErrorBoundary** перехватывает ошибки рендера React и при включённом флаге показывает сообщение и component stack.
+- **UnhandledRejectionHandler** подписывается на `unhandledrejection` и при включённом флаге показывает ошибку в оверлее (например, падение при загрузке профиля в AuthContext).
+
+Выключить: удалить `VITE_SHOW_ERRORS` из .env или поставить `VITE_SHOW_ERRORS=false`. В продакшене вывод ошибок не включать.
 
 ---
 

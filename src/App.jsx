@@ -18,6 +18,7 @@
 // ============================================================
 
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 
 // Публичные страницы
@@ -39,11 +40,21 @@ import SignaturePage from './pages/dashboard/SignaturePage';
 import BillingPage from './pages/dashboard/BillingPage';
 import SettingsPage from './pages/dashboard/SettingsPage';
 
+// Экран загрузки при проверке сессии (вместо белого экрана)
+function AuthLoadingScreen() {
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
+      <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+      <p className="text-slate-500">Проверка сессии...</p>
+    </div>
+  );
+}
+
 // Компонент-обёртка для защищённых маршрутов
-// Пока идёт проверка сессии — рендерим пустой экран, не редиректим
+// Пока идёт проверка сессии — показываем экран загрузки, не редиректим
 function PrivateRoute({ children }) {
   const { isLoggedIn, loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <AuthLoadingScreen />;
   return isLoggedIn ? children : <Navigate to="/auth/login" replace />;
 }
 

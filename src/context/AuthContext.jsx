@@ -17,45 +17,68 @@ export function AuthProvider({ children }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Загружаем профиль из БД по userId
+  // Загружаем профиль из БД по userId (при ошибке профиль остаётся null, loading снимается)
   const fetchProfile = useCallback(async (userId) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single();
-    setProfile(data);
+    if (!error) setProfile(data);
+    else setProfile(null);
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    // Страховка: если через 8 с loading всё ещё true — снимаем, чтобы не зависнуть на белом экране
+    const timeoutId = setTimeout(() => {
+      if (cancelled) return;
+      setLoading(false);
+    }, 8000);
+
     // Восстанавливаем сессию при старте приложения
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user);
-        setIsLoggedIn(true);
-        fetchProfile(session.user.id).finally(() => setLoading(false));
-      } else {
-        setLoading(false);
-      }
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (cancelled) return;
+        if (session?.user) {
+          setUser(session.user);
+          setIsLoggedIn(true);
+          fetchProfile(session.user.id).finally(() => setLoading(false));
+        } else {
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
 
     // Подписка на изменения состояния авторизации (вход / выход / обновление токена)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (session?.user) {
-          setUser(session.user);
-          setIsLoggedIn(true);
-          await fetchProfile(session.user.id);
-        } else {
-          setUser(null);
-          setProfile(null);
-          setIsLoggedIn(false);
+        try {
+          if (cancelled) return;
+          if (session?.user) {
+            setUser(session.user);
+            setIsLoggedIn(true);
+            await fetchProfile(session.user.id);
+          } else {
+            setUser(null);
+            setProfile(null);
+            setIsLoggedIn(false);
+          }
+        } finally {
+          if (!cancelled) setLoading(false);
         }
-        setLoading(false);
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
   }, [fetchProfile]);
 
   // Вход — бросает ошибку при неудаче
