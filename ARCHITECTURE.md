@@ -18,7 +18,7 @@ src/
 ├── main.jsx               # Точка входа: ErrorBoundary + UnhandledRejectionHandler + BrowserRouter + AuthProvider + App
 ├── App.jsx                # Маршруты + PrivateRoute (проверяет loading → isLoggedIn)
 ├── index.css              # Tailwind @import + базовые стили
-├── config.js              # Конфиг из .env: showErrorsOnScreen (VITE_SHOW_ERRORS)
+├── config.js              # Конфиг из .env: showErrorsOnScreen (VITE_SHOW_ERRORS), allowFakeOrgData (VITE_ALLOW_FAKE_ORG_DATA)
 │
 ├── lib/
 │   └── supabase.js        # Supabase client (singleton), читает VITE_SUPABASE_* из .env
@@ -28,8 +28,8 @@ src/
 │                          # isLoggedIn, loading, login/register/logout/refreshProfile
 │
 ├── data/
-│   └── mockData.js        # СТАТИЧЕСКИЕ данные: PLAN_LABELS, mockPlans, mockTestimonials, mockDocumentFields
-│                          # (тарифы, отзывы, поля редактора — не персональные, не в БД)
+│   └── mockData.js        # СТАТИЧЕСКИЕ данные: PLAN_LABELS, mockPlans, mockTestimonials, mockDocumentFields,
+│                          # fakeOrgForm (для кнопки «Заполнить фейковыми данными» при allowFakeOrgData)
 │
 ├── components/
 │   ├── ErrorBoundary.jsx  # Перехват ошибок рендера React; при VITE_SHOW_ERRORS=true — вывод на экран

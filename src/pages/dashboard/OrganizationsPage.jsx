@@ -8,6 +8,8 @@ import DashboardLayout from '../../components/DashboardLayout';
 import Modal from '../../components/Modal';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { allowFakeOrgData } from '../../config';
+import { fakeOrgForm } from '../../data/mockData';
 
 // Начальное состояние формы новой организации
 const emptyOrg = {
@@ -131,7 +133,10 @@ export default function OrganizationsPage() {
   const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setLoadingList(false);
+      return;
+    }
     fetchOrgs();
   }, [user?.id]);
 
@@ -204,35 +209,37 @@ export default function OrganizationsPage() {
     setSaving(true);
     setSaveError('');
 
-    if (editOrg) {
-      const { error: err } = await supabase
-        .from('organizations')
-        .update(orgToDb(form, user.id))
-        .eq('id', editOrg.id);
+    try {
+      if (editOrg) {
+        const { error: err } = await supabase
+          .from('organizations')
+          .update(orgToDb(form, user.id))
+          .eq('id', editOrg.id);
 
-      if (err) {
-        setSaveError(err.message);
-        setSaving(false);
-        return;
-      }
-      setOrgs(prev => prev.map(o => o.id === editOrg.id ? { ...orgFromDb({ ...orgToDb(form, user.id), id: editOrg.id, is_main: form.isMain }) } : o));
-    } else {
-      const { data, error: err } = await supabase
-        .from('organizations')
-        .insert(orgToDb(form, user.id))
-        .select()
-        .single();
+        if (err) {
+          setSaveError(err.message);
+          return;
+        }
+        setOrgs(prev => prev.map(o => o.id === editOrg.id ? { ...orgFromDb({ ...orgToDb(form, user.id), id: editOrg.id, is_main: form.isMain }) } : o));
+      } else {
+        const { data, error: err } = await supabase
+          .from('organizations')
+          .insert(orgToDb(form, user.id))
+          .select()
+          .single();
 
-      if (err) {
-        setSaveError(err.message);
-        setSaving(false);
-        return;
+        if (err) {
+          setSaveError(err.message);
+          return;
+        }
+        setOrgs(prev => [...prev, orgFromDb(data)]);
       }
-      setOrgs(prev => [...prev, orgFromDb(data)]);
+      setModalOpen(false);
+    } catch (e) {
+      setSaveError(e?.message || 'Не удалось сохранить');
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
-    setModalOpen(false);
   }
 
   async function handleDelete(id) {
@@ -403,6 +410,15 @@ export default function OrganizationsPage() {
               {tab.label}
             </button>
           ))}
+          {allowFakeOrgData && (
+            <button
+              type="button"
+              onClick={() => { setForm({ ...fakeOrgForm }); setErrors({}); }}
+              className="ml-auto text-xs text-slate-500 hover:text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              Заполнить фейковыми данными
+            </button>
+          )}
         </div>
 
         {/* Вкладка: Реквизиты */}
