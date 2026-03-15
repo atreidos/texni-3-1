@@ -7,7 +7,7 @@ import { Plus, Edit2, Trash2, Star, Building2, AlertCircle, Loader2 } from 'luci
 import DashboardLayout from '../../components/DashboardLayout';
 import Modal from '../../components/Modal';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { supabase, insertOrganizationViaFetch } from '../../lib/supabase';
 import { allowFakeOrgData } from '../../config';
 import { fakeOrgForm } from '../../data/mockData';
 
@@ -146,16 +146,19 @@ export default function OrganizationsPage() {
   async function fetchOrgs() {
     setLoadingList(true);
     setListError(null);
-    const query = supabase
-      .from('organizations')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('is_main', { ascending: false });
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error(LOAD_TIMEOUT_MSG)), LOAD_TIMEOUT_MS)
     );
     try {
-      const { data, error: err } = await Promise.race([query, timeoutPromise]);
+      const queryPromise = (async () => {
+        const res = await supabase
+          .from('organizations')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('is_main', { ascending: false });
+        return res;
+      })();
+      const { data, error: err } = await Promise.race([queryPromise, timeoutPromise]);
       if (err) {
         setListError(err.message);
       } else {
@@ -200,45 +203,58 @@ export default function OrganizationsPage() {
     if (submitted) setErrors(validate(updated));
   }
 
-  async function handleSave() {
-    setSubmitted(true);
-    const errs = validate(form);
-    setErrors(errs);
-    if (Object.keys(errs).length > 0) return;
+  const SAVE_TIMEOUT_MS = 15000;
+  const SAVE_TIMEOUT_MSG = 'Сохранение заняло слишком долго. Проверьте соединение.';
 
-    setSaving(true);
+  async function handleSave(e) {
+    if (e?.preventDefault) e.preventDefault();
     setSaveError('');
 
     try {
-      if (editOrg) {
-        const { error: err } = await supabase
-          .from('organizations')
-          .update(orgToDb(form, user.id))
-          .eq('id', editOrg.id);
-
-        if (err) {
-          setSaveError(err.message);
-          return;
-        }
-        setOrgs(prev => prev.map(o => o.id === editOrg.id ? { ...orgFromDb({ ...orgToDb(form, user.id), id: editOrg.id, is_main: form.isMain }) } : o));
-      } else {
-        const { data, error: err } = await supabase
-          .from('organizations')
-          .insert(orgToDb(form, user.id))
-          .select()
-          .single();
-
-        if (err) {
-          setSaveError(err.message);
-          return;
-        }
-        setOrgs(prev => [...prev, orgFromDb(data)]);
+      if (!user?.id) {
+        setSaveError('Нет данных пользователя. Обновите страницу.');
+        return;
       }
-      setModalOpen(false);
+      setSubmitted(true);
+      const errs = validate(form);
+      setErrors(errs);
+      if (Object.keys(errs).length > 0) {
+        setSaveError('Заполните обязательные поля (название, ИНН, ОГРН).');
+        return;
+      }
+
+      setSaving(true);
+      const timeoutId = setTimeout(() => {
+        setSaveError(SAVE_TIMEOUT_MSG);
+        setSaving(false);
+      }, SAVE_TIMEOUT_MS);
+
+      try {
+        if (editOrg) {
+          const { error: err } = await supabase
+            .from('organizations')
+            .update(orgToDb(form, user.id))
+            .eq('id', editOrg.id);
+          clearTimeout(timeoutId);
+          if (err) throw new Error(err.message);
+          setOrgs(prev => prev.map(o => o.id === editOrg.id ? { ...orgFromDb({ ...orgToDb(form, user.id), id: editOrg.id, is_main: form.isMain }) } : o));
+        } else {
+          const payload = orgToDb(form, user.id);
+          const { error: err } = await insertOrganizationViaFetch(payload);
+          clearTimeout(timeoutId);
+          if (err) throw new Error(err.message);
+          await fetchOrgs();
+        }
+        setModalOpen(false);
+      } catch (inner) {
+        clearTimeout(timeoutId);
+        throw inner;
+      } finally {
+        clearTimeout(timeoutId);
+        setSaving(false);
+      }
     } catch (e) {
       setSaveError(e?.message || 'Не удалось сохранить');
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -400,6 +416,7 @@ export default function OrganizationsPage() {
           ].map(tab => (
             <button
               key={tab.id}
+              type="button"
               onClick={() => setActiveTab(tab.id)}
               className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
                 activeTab === tab.id
@@ -568,14 +585,16 @@ export default function OrganizationsPage() {
 
         <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
           <button
+            type="button"
             onClick={() => setModalOpen(false)}
             className="px-5 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
           >
             Отмена
           </button>
           <button
-            onClick={handleSave}
+            type="button"
             disabled={saving}
+            onClick={() => handleSave()}
             className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {saving && <Loader2 size={14} className="animate-spin" />}

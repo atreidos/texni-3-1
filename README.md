@@ -41,9 +41,10 @@ VITE_ALLOW_FAKE_ORG_DATA=true
 
 Где взять значения:
 - Откройте [supabase.com](https://supabase.com) → ваш проект → **Settings → API**
-- `VITE_SUPABASE_URL` — поле **Project URL**
+- `VITE_SUPABASE_URL` — скопируйте **Project URL** как есть (должен начинаться с `https://` и содержать `supabase.co`), не подставляйте localhost
 - `VITE_SUPABASE_ANON_KEY` — поле **anon / public** в разделе Project API Keys
 
+После изменения `.env` перезапустите `npm run dev`. В Network (F12) запросы к API идут на ваш домен Supabase (`*.supabase.co`), а не на localhost.
 > Префикс `VITE_` обязателен — Vite экспонирует в браузер только переменные с этим префиксом.
 
 ### 3. Разверните схему БД в Supabase
