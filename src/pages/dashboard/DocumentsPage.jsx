@@ -39,21 +39,32 @@ export default function DocumentsPage() {
     fetchDocs();
   }, [user?.id]);
 
+  const LOAD_TIMEOUT_MS = 30000;
+  const LOAD_TIMEOUT_MSG = 'Загрузка заняла более 30 секунд. Проверьте соединение и попробуйте снова.';
+
   async function fetchDocs() {
     setLoading(true);
     setError(null);
-    const { data, error: err } = await supabase
+    const query = supabase
       .from('documents')
       .select('*, organizations(name)')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false });
-
-    if (err) {
-      setError(err.message);
-    } else {
-      setDocs(data || []);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(LOAD_TIMEOUT_MSG)), LOAD_TIMEOUT_MS)
+    );
+    try {
+      const { data, error: err } = await Promise.race([query, timeoutPromise]);
+      if (err) {
+        setError(err.message);
+      } else {
+        setDocs(data || []);
+      }
+    } catch (e) {
+      setError(e?.message || LOAD_TIMEOUT_MSG);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   async function handleDelete(id) {
@@ -114,9 +125,18 @@ export default function DocumentsPage() {
           <span>Загрузка...</span>
         </div>
       ) : error ? (
-        <div className="bg-white rounded-xl border border-red-200 py-16 flex items-center justify-center gap-2 text-red-500">
-          <AlertCircle size={18} />
-          <span>{error}</span>
+        <div className="bg-white rounded-xl border border-red-200 py-16 flex flex-col items-center justify-center gap-3 text-red-500">
+          <div className="flex items-center gap-2">
+            <AlertCircle size={18} />
+            <span>{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => fetchDocs()}
+            className="text-sm bg-red-50 text-red-700 px-4 py-2 rounded-lg hover:bg-red-100 transition-colors"
+          >
+            Повторить
+          </button>
         </div>
       ) : (
         <>

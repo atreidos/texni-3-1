@@ -2,7 +2,7 @@
 // App.jsx — корневой компонент с роутингом
 //
 // Маршруты:
-//   /                          → LandingPage
+//   /                          → авторизованный: редирект на /dashboard, иначе LandingPage
 //   /editor                    → EditorPage
 //   /pricing                   → PricingPage
 //   /auth/login                → LoginPage
@@ -40,6 +40,14 @@ import SignaturePage from './pages/dashboard/SignaturePage';
 import BillingPage from './pages/dashboard/BillingPage';
 import SettingsPage from './pages/dashboard/SettingsPage';
 
+// Главная: для авторизованного — редирект на Обзор, иначе лендинг
+function LandingOrRedirect() {
+  const { isLoggedIn, loading } = useAuth();
+  if (loading) return <AuthLoadingScreen />;
+  if (isLoggedIn) return <Navigate to="/dashboard" replace />;
+  return <LandingPage />;
+}
+
 // Экран загрузки при проверке сессии (вместо белого экрана)
 function AuthLoadingScreen() {
   return (
@@ -61,8 +69,8 @@ function PrivateRoute({ children }) {
 export default function App() {
   return (
     <Routes>
-      {/* Публичные страницы */}
-      <Route path="/" element={<LandingPage />} />
+      {/* Главная: авторизованный → /dashboard (Обзор), иначе лендинг */}
+      <Route path="/" element={<LandingOrRedirect />} />
       <Route path="/editor" element={<EditorPage />} />
       <Route path="/pricing" element={<PricingPage />} />
 

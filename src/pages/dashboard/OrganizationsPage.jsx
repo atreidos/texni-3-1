@@ -135,21 +135,32 @@ export default function OrganizationsPage() {
     fetchOrgs();
   }, [user?.id]);
 
+  const LOAD_TIMEOUT_MS = 30000;
+  const LOAD_TIMEOUT_MSG = 'Загрузка заняла более 30 секунд. Проверьте соединение и попробуйте снова.';
+
   async function fetchOrgs() {
     setLoadingList(true);
     setListError(null);
-    const { data, error: err } = await supabase
+    const query = supabase
       .from('organizations')
       .select('*')
       .eq('user_id', user.id)
       .order('is_main', { ascending: false });
-
-    if (err) {
-      setListError(err.message);
-    } else {
-      setOrgs((data || []).map(orgFromDb));
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(LOAD_TIMEOUT_MSG)), LOAD_TIMEOUT_MS)
+    );
+    try {
+      const { data, error: err } = await Promise.race([query, timeoutPromise]);
+      if (err) {
+        setListError(err.message);
+      } else {
+        setOrgs((data || []).map(orgFromDb));
+      }
+    } catch (e) {
+      setListError(e?.message || LOAD_TIMEOUT_MSG);
+    } finally {
+      setLoadingList(false);
     }
-    setLoadingList(false);
   }
 
   function openAdd() {
@@ -282,9 +293,18 @@ export default function OrganizationsPage() {
           <span>Загрузка...</span>
         </div>
       ) : listError ? (
-        <div className="flex items-center justify-center gap-2 text-red-500 py-16">
-          <AlertCircle size={18} />
-          <span>{listError}</span>
+        <div className="flex flex-col items-center justify-center gap-3 text-red-500 py-16">
+          <div className="flex items-center gap-2">
+            <AlertCircle size={18} />
+            <span>{listError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => fetchOrgs()}
+            className="text-sm bg-red-50 text-red-700 px-4 py-2 rounded-lg hover:bg-red-100 transition-colors"
+          >
+            Повторить
+          </button>
         </div>
       ) : orgs.length === 0 ? (
         <div className="text-center py-16 text-slate-400">

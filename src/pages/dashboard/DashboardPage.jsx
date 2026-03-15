@@ -9,9 +9,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
-
-// Карта тарифов для отображения
-const PLAN_LABELS = { free: 'Бесплатно', pro: 'Про', business: 'Бизнес' };
+import { PLAN_LABELS } from '../../data/mockData';
 
 // Форматируем дату из ISO-строки в YYYY-MM-DD
 function formatDate(iso) {

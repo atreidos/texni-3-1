@@ -103,6 +103,9 @@ export const mockOrganizations = [
   },
 ];
 
+// Подписи тарифов для отображения (free/pro/business)
+export const PLAN_LABELS = { free: 'Бесплатно', pro: 'Про', business: 'Бизнес' };
+
 // Тарифные планы
 export const mockPlans = [
   {

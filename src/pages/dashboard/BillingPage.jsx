@@ -8,9 +8,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import PricingCard from '../../components/PricingCard';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { mockPlans } from '../../data/mockData';
-
-const PLAN_LABELS = { free: 'Бесплатно', pro: 'Про', business: 'Бизнес' };
+import { mockPlans, PLAN_LABELS } from '../../data/mockData';
 
 // Форматируем дату оплаты
 function formatDate(iso) {
