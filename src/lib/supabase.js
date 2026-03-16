@@ -27,28 +27,61 @@ if (!supabaseUrl.includes('supabase.co') || supabaseUrl.includes('localhost')) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
- * Вставка организации через прямой fetch (обход клиента для отладки).
- * Использует текущую сессию для Authorization.
+ * Вставка организации через прямой fetch с обработкой 401:
+ * - первый запрос с текущим access_token
+ * - при 401 → один refreshSession() и повтор запроса
+ * - при повторном 401 или ошибке refresh → signOut + редирект на /auth/login
  */
 export async function insertOrganizationViaFetch(payload) {
-  const { data: { session } } = await supabase.auth.getSession();
   const url = supabaseUrl + '/rest/v1/organizations';
-  const headers = {
-    'Content-Type': 'application/json',
-    'apikey': supabaseAnonKey,
-    'Authorization': 'Bearer ' + (session?.access_token || supabaseAnonKey),
-    'Prefer': 'return=minimal',
-  };
-  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
-  if (!res.ok) {
-    const text = await res.text();
-    let msg = res.status + ' ' + res.statusText;
-    try {
-      const j = JSON.parse(text);
-      if (j?.message) msg = j.message;
-      if (j?.details) msg += ': ' + j.details;
-    } catch (_) {}
-    return { error: { message: msg } };
+
+  async function attempt() {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token || supabaseAnonKey;
+    const headers = {
+      'Content-Type': 'application/json',
+      apikey: supabaseAnonKey,
+      Authorization: 'Bearer ' + token,
+      Prefer: 'return=minimal',
+    };
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+    const status = res.status;
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = status + ' ' + res.statusText;
+      try {
+        const j = JSON.parse(text);
+        if (j?.message) msg = j.message;
+        if (j?.details) msg += ': ' + j.details;
+      } catch (_) {}
+      return { status, error: { message: msg } };
+    }
+    return { status, error: null };
   }
-  return { error: null };
+
+  // Первая попытка
+  let { status, error } = await attempt();
+  if (status !== 401) {
+    return { error };
+  }
+
+  // 401 → пробуем один раз обновить сессию
+  const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+  if (refreshError || !refreshed?.session) {
+    // refresh не удался — выходим и отправляем на логин
+    await supabase.auth.signOut();
+    window.location.assign('/auth/login');
+    return { error: error || { message: 'Сессия истекла, войдите снова.' } };
+  }
+
+  // Вторая попытка с обновлённой сессией
+  ({ status, error } = await attempt());
+  if (status === 401) {
+    // Повторный 401 — очищаем сессию и просим перелогиниться
+    await supabase.auth.signOut();
+    window.location.assign('/auth/login');
+    return { error: error || { message: 'Сессия истекла, войдите снова.' } };
+  }
+
+  return { error };
 }

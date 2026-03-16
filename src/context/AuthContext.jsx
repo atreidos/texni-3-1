@@ -40,18 +40,44 @@ export function AuthProvider({ children }) {
     // Восстанавливаем сессию при старте приложения
     supabase.auth
       .getSession()
-      .then(({ data: { session } }) => {
+      .then(async ({ data: { session } }) => {
         if (cancelled) return;
-        if (session?.user) {
-          setUser(session.user);
-          setIsLoggedIn(true);
-          fetchProfile(session.user.id).finally(() => setLoading(false));
-        } else {
+
+        // Если сессии нет — просто снимаем загрузку
+        if (!session?.user) {
           setLoading(false);
+          return;
+        }
+
+        try {
+          // Пытаемся один раз обновить сессию при старте приложения
+          const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+
+          if (refreshError || !refreshed?.session?.user) {
+            // Не удалось обновить — считаем, что сессии нет, очищаем состояние
+            setUser(null);
+            setProfile(null);
+            setIsLoggedIn(false);
+            setLoading(false);
+            return;
+          }
+
+          const freshUser = refreshed.session.user;
+          setUser(freshUser);
+          setIsLoggedIn(true);
+          await fetchProfile(freshUser.id);
+        } finally {
+          if (!cancelled) setLoading(false);
         }
       })
       .catch(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          // На любой ошибке — сбрасываем состояние и снимаем загрузку
+          setUser(null);
+          setProfile(null);
+          setIsLoggedIn(false);
+          setLoading(false);
+        }
       });
 
     // Подписка на изменения состояния авторизации (вход / выход / обновление токена)
