@@ -1,17 +1,20 @@
-# ARCHITECTURE.md — DocFlow Frontend
+# ARCHITECTURE.md — DocFlow (frontend + backend)
 
 ## Стек
 
-- **Vite 7** — сборщик, dev-сервер
+- **Vite 7** — сборщик, dev-сервер (frontend)
 - **React 19** — UI-библиотека
 - **React Router DOM 7** — маршрутизация (client-side)
 - **Tailwind CSS 4** — утилитарные стили
 - **Lucide React** — иконки
-- **@supabase/supabase-js** — клиент Supabase (Auth + PostgreSQL)
+- **@supabase/supabase-js** — клиент Supabase (Auth + PostgreSQL) на фронте
+- **Supabase** — backend-платформа (PostgreSQL + Auth + PostgREST + Edge Functions)
 
 ---
 
 ## Структура файлов
+
+### Frontend (`src/`)
 
 ```
 src/
@@ -62,6 +65,21 @@ src/
         ├── BillingPage.jsx        # fetch payments; profile из контекста
         └── SettingsPage.jsx       # update profiles; supabase.auth.updateUser (пароль)
 ```
+
+### Backend (`supabase/` в репозитории, Supabase в облаке)
+
+Весь backend исполняется на стороне Supabase, а не в Node/Django и т.п. Репозиторий хранит инфраструктурный код:
+
+```
+supabase/
+├── migrations/
+│   └── 001_init_schema.sql   # SQL-схема БД, триггеры, RLS-политики (вынесено из SQL.md)
+└── functions/
+    └── create-payment/
+        └── index.ts          # Edge Function под service_role для INSERT в payments
+```
+
+Edge Functions деплоятся через Supabase CLI (`supabase functions deploy create-payment`), а переменные `SUPABASE_URL` и `SUPABASE_SERVICE_ROLE_KEY` задаются в настройках проекта Supabase.
 
 ---
 

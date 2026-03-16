@@ -47,11 +47,25 @@ VITE_ALLOW_FAKE_ORG_DATA=true
 После изменения `.env` перезапустите `npm run dev`. В Network (F12) запросы к API идут на ваш домен Supabase (`*.supabase.co`), а не на localhost.
 > Префикс `VITE_` обязателен — Vite экспонирует в браузер только переменные с этим префиксом.
 
-### 3. Разверните схему БД в Supabase
+### 3. Разверните backend (Supabase)
 
-Скопируйте содержимое `SQL.md` и выполните его в **Supabase → SQL Editor**.  
-Это создаёт таблицы `profiles`, `organizations`, `documents`, `document_fields`, `payments`,  
-RLS-политики и триггеры (в том числе автосоздание профиля при регистрации).
+В репозитории backend-код хранится в папке `supabase/`:
+
+- `supabase/migrations/001_init_schema.sql` — схема БД, триггеры и RLS-политики  
+- `supabase/functions/create-payment/index.ts` — Edge Function для записи в `payments` через `service_role`
+
+Есть два варианта развёртывания схемы:
+
+1. **Через Supabase CLI и миграции** (рекомендуется для продакшена)
+   - Скопируйте содержимое `supabase/migrations/001_init_schema.sql` в новую миграцию Supabase
+     или перенесите файл в каталог миграций вашего Supabase-проекта.
+   - Примените миграции (`supabase db push` / `supabase db reset` в зависимости от вашего flow).
+
+2. **Через SQL Editor (быстрый старт)**
+   - Скопируйте содержимое `supabase/migrations/001_init_schema.sql`
+   - Вставьте в **Supabase → SQL Editor** и выполните скрипт.
+   - Это создаст таблицы `profiles`, `organizations`, `documents`, `document_fields`, `payments`,
+     а также настроит RLS-политики и триггеры (в том числе автосоздание профиля при регистрации).
 
 ### 4. Запустите проект
 
@@ -77,16 +91,23 @@ npm run dev
 ## Структура проекта
 
 ```
-src/
-├── config.js                # Конфиг (в т.ч. VITE_SHOW_ERRORS для вывода ошибок на экран)
+src/                          # Frontend (React + Vite), выполняется в браузере
+├── config.js                 # Конфиг (в т.ч. VITE_SHOW_ERRORS для вывода ошибок на экран)
 ├── lib/
-│   └── supabase.js          # Supabase client (singleton)
+│   └── supabase.js           # Supabase client (singleton)
 ├── context/
-│   └── AuthContext.jsx      # Auth state + profile из БД
+│   └── AuthContext.jsx       # Auth state + profile из БД
 ├── components/               # ErrorBoundary, UnhandledRejectionHandler, Header, Sidebar, …
 ├── pages/
-│   ├── auth/                # Вход, регистрация, восстановление пароля
-│   └── dashboard/           # Личный кабинет (документы, орги, биллинг, настройки)
+│   ├── auth/                 # Вход, регистрация, восстановление пароля
+│   └── dashboard/            # Личный кабинет (документы, орги, биллинг, настройки)
 └── data/
-    └── mockData.js          # Статические данные (тарифы, отзывы, поля редактора)
+    └── mockData.js           # Статические данные (тарифы, отзывы, поля редактора)
+
+supabase/                     # Backend (инфраструктурный код для Supabase)
+├── migrations/
+│   └── 001_init_schema.sql   # SQL-схема (таблицы, триггеры, RLS-политики)
+└── functions/
+    └── create-payment/
+        └── index.ts          # Edge Function с service_role для записи в payments
 ```
