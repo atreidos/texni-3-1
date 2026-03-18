@@ -33,6 +33,7 @@ export default function DocumentsPage() {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [sortOrder, setSortOrder] = useState('desc');
 
   useEffect(() => {
     if (!user?.id) return;
@@ -87,10 +88,17 @@ export default function DocumentsPage() {
     return matchSearch && matchStatus;
   });
 
+  // Сортировка по дате изменения
+  const sorted = [...filtered].sort((a, b) => {
+    const aTime = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+    const bTime = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+    return sortOrder === 'desc' ? bTime - aTime : aTime - bTime;
+  });
+
   return (
     <DashboardLayout title="Мои документы">
 
-      {/* Фильтры и поиск */}
+      {/* Фильтры, поиск и сортировка */}
       <div className="flex flex-col sm:flex-row gap-3 mb-5">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -114,6 +122,18 @@ export default function DocumentsPage() {
             <option value="draft">Черновики</option>
             <option value="filled">Заполненные</option>
             <option value="signed">Подписанные</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-500 whitespace-nowrap">Сортировка по дате</span>
+          <select
+            value={sortOrder}
+            onChange={e => setSortOrder(e.target.value)}
+            className="border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="desc">Сначала новые</option>
+            <option value="asc">Сначала старые</option>
           </select>
         </div>
       </div>
@@ -142,7 +162,7 @@ export default function DocumentsPage() {
         <>
           {/* Таблица документов */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            {filtered.length === 0 ? (
+            {sorted.length === 0 ? (
               <div className="py-16 text-center">
                 <FileText size={40} className="text-slate-200 mx-auto mb-3" />
                 <p className="text-slate-400">Документы не найдены</p>
@@ -159,7 +179,7 @@ export default function DocumentsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {filtered.map(doc => (
+                  {sorted.map(doc => (
                     <tr key={doc.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
@@ -214,9 +234,9 @@ export default function DocumentsPage() {
             )}
           </div>
 
-          {filtered.length > 0 && (
+          {sorted.length > 0 && (
             <div className="flex items-center justify-between mt-4 text-sm text-slate-500">
-              <p>Показано {filtered.length} из {docs.length}</p>
+              <p>Показано {sorted.length} из {docs.length}</p>
             </div>
           )}
         </>

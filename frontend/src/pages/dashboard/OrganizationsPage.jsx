@@ -218,10 +218,7 @@ export default function OrganizationsPage() {
       setSubmitted(true);
       const errs = validate(form);
       setErrors(errs);
-      if (Object.keys(errs).length > 0) {
-        setSaveError('Заполните обязательные поля (название, ИНН, ОГРН).');
-        return;
-      }
+      if (Object.keys(errs).length > 0) return;
 
       setSaving(true);
       const timeoutId = setTimeout(() => {
@@ -309,14 +306,14 @@ export default function OrganizationsPage() {
         </button>
       </div>
 
-      {/* Состояния загрузки / ошибки */}
+      {/* Состояния загрузки / ошибки / пусто */}
       {loadingList ? (
-        <div className="flex items-center justify-center gap-2 text-slate-400 py-16">
+        <div className="bg-white rounded-xl border border-slate-200 py-16 flex items-center justify-center gap-2 text-slate-400">
           <Loader2 size={20} className="animate-spin" />
           <span>Загрузка...</span>
         </div>
       ) : listError ? (
-        <div className="flex flex-col items-center justify-center gap-3 text-red-500 py-16">
+        <div className="bg-white rounded-xl border border-red-200 py-16 flex flex-col items-center justify-center gap-3 text-red-500">
           <div className="flex items-center gap-2">
             <AlertCircle size={18} />
             <span>{listError}</span>
@@ -330,7 +327,7 @@ export default function OrganizationsPage() {
           </button>
         </div>
       ) : orgs.length === 0 ? (
-        <div className="text-center py-16 text-slate-400">
+        <div className="bg-white rounded-xl border border-slate-200 py-16 text-center text-slate-400">
           <Building2 size={40} className="mx-auto mb-3 text-slate-200" />
           <p>Нет организаций. Добавьте первую!</p>
         </div>
@@ -571,16 +568,16 @@ export default function OrganizationsPage() {
           </div>
         )}
 
-        {/* Ошибки валидации и серверная ошибка */}
-        {hasErrors && (
-          <p className="text-xs text-red-500 mt-4">
-            Исправьте ошибки перед сохранением (проверьте все вкладки)
-          </p>
-        )}
-        {saveError && (
-          <p className="text-xs text-red-500 mt-4 flex items-center gap-1">
-            <AlertCircle size={13} /> {saveError}
-          </p>
+        {/* Общий блок ошибок формы */}
+        {(hasErrors || saveError) && (
+          <div className="mt-4 text-xs text-red-500 flex items-center gap-1">
+            <AlertCircle size={13} />
+            <span>
+              {hasErrors
+                ? 'Заполните обязательные поля (проверьте все вкладки)'
+                : saveError}
+            </span>
+          </div>
         )}
 
         <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
