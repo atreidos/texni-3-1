@@ -14,10 +14,16 @@
 
 ## Структура файлов
 
-### Frontend (`src/`)
+### Frontend (`frontend/src/`)
 
 ```
-src/
+frontend/
+├── index.html
+├── vite.config.js
+├── eslint.config.js
+├── package.json
+├── public/
+└── src/
 ├── main.jsx               # Точка входа: ErrorBoundary + UnhandledRejectionHandler + BrowserRouter + AuthProvider + App
 ├── App.jsx                # Маршруты + PrivateRoute (проверяет loading → isLoggedIn)
 ├── index.css              # Tailwind @import + базовые стили
@@ -66,12 +72,13 @@ src/
         └── SettingsPage.jsx       # update profiles; supabase.auth.updateUser (пароль)
 ```
 
-### Backend (`supabase/` в репозитории, Supabase в облаке)
+### Backend (`backend/supabase/` в репозитории, Supabase в облаке)
 
 Весь backend исполняется на стороне Supabase, а не в Node/Django и т.п. Репозиторий хранит инфраструктурный код:
 
 ```
-supabase/
+backend/
+└── supabase/
 ├── migrations/
 │   └── 001_init_schema.sql   # SQL-схема БД, триггеры, RLS-политики (вынесено из SQL.md)
 └── functions/
@@ -188,7 +195,7 @@ RLS на стороне Supabase дублирует эту защиту неза
 
 ## Схема базы данных (Supabase / PostgreSQL)
 
-Готовый SQL-скрипт: **[SQL.md](./SQL.md)**
+Готовый SQL-скрипт: **[backend/SQL.md](./backend/SQL.md)**
 
 ### Таблицы
 

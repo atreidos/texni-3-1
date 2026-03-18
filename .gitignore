@@ -17,6 +17,11 @@ dist
 dist-ssr
 *.local
 
+# Monorepo layout
+frontend/node_modules
+frontend/dist
+frontend/dist-ssr
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -11,12 +11,13 @@
 ### 1. Установите зависимости
 
 ```bash
+cd frontend
 npm install
 ```
 
 ### 2. Настройте переменные окружения
 
-Создайте файл `.env` в корне проекта (если его ещё нет):
+Создайте файл `.env` в `frontend/` (если его ещё нет):
 
 ```env
 VITE_SUPABASE_URL=https://your-project-id.supabase.co
@@ -49,10 +50,10 @@ VITE_ALLOW_FAKE_ORG_DATA=true
 
 ### 3. Разверните backend (Supabase)
 
-В репозитории backend-код хранится в папке `supabase/`:
+В репозитории backend-код хранится в папке `backend/supabase/`:
 
-- `supabase/migrations/001_init_schema.sql` — схема БД, триггеры и RLS-политики  
-- `supabase/functions/create-payment/index.ts` — Edge Function для записи в `payments` через `service_role`
+- `backend/supabase/migrations/001_init_schema.sql` — схема БД, триггеры и RLS-политики  
+- `backend/supabase/functions/create-payment/index.ts` — Edge Function для записи в `payments` через `service_role`
 
 Есть два варианта развёртывания схемы:
 
@@ -62,7 +63,7 @@ VITE_ALLOW_FAKE_ORG_DATA=true
    - Примените миграции (`supabase db push` / `supabase db reset` в зависимости от вашего flow).
 
 2. **Через SQL Editor (быстрый старт)**
-   - Скопируйте содержимое `supabase/migrations/001_init_schema.sql`
+   - Скопируйте содержимое `backend/supabase/migrations/001_init_schema.sql`
    - Вставьте в **Supabase → SQL Editor** и выполните скрипт.
    - Это создаст таблицы `profiles`, `organizations`, `documents`, `document_fields`, `payments`,
      а также настроит RLS-политики и триггеры (в том числе автосоздание профиля при регистрации).
@@ -70,6 +71,7 @@ VITE_ALLOW_FAKE_ORG_DATA=true
 ### 4. Запустите проект
 
 ```bash
+cd frontend
 npm run dev
 ```
 
@@ -91,23 +93,21 @@ npm run dev
 ## Структура проекта
 
 ```
-src/                          # Frontend (React + Vite), выполняется в браузере
-├── config.js                 # Конфиг (в т.ч. VITE_SHOW_ERRORS для вывода ошибок на экран)
-├── lib/
-│   └── supabase.js           # Supabase client (singleton)
-├── context/
-│   └── AuthContext.jsx       # Auth state + profile из БД
-├── components/               # ErrorBoundary, UnhandledRejectionHandler, Header, Sidebar, …
-├── pages/
-│   ├── auth/                 # Вход, регистрация, восстановление пароля
-│   └── dashboard/            # Личный кабинет (документы, орги, биллинг, настройки)
-└── data/
-    └── mockData.js           # Статические данные (тарифы, отзывы, поля редактора)
+frontend/                     # Frontend (React + Vite), выполняется в браузере
+├── src/                      # React-код приложения
+├── public/                   # статические файлы
+├── index.html                # HTML-шаблон
+├── vite.config.js            # конфиг Vite
+├── eslint.config.js          # конфиг ESLint
+├── package.json              # зависимости и скрипты фронта
+└── .env                      # переменные окружения Vite (не коммитить)
 
-supabase/                     # Backend (инфраструктурный код для Supabase)
-├── migrations/
-│   └── 001_init_schema.sql   # SQL-схема (таблицы, триггеры, RLS-политики)
-└── functions/
-    └── create-payment/
-        └── index.ts          # Edge Function с service_role для записи в payments
+backend/                      # Backend (Supabase: БД + Auth + RLS + Edge Functions)
+├── supabase/
+│   ├── migrations/
+│   │   └── 001_init_schema.sql   # SQL-схема (таблицы, триггеры, RLS-политики)
+│   └── functions/
+│       └── create-payment/
+│           └── index.ts          # Edge Function с service_role для записи в payments
+└── SQL.md                    # текст SQL (справочно)
 ```
