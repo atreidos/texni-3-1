@@ -213,3 +213,4 @@ RLS на стороне Supabase дублирует эту защиту неза
 - **`payments` INSERT только через `service_role`** — платёж создаётся бэкендом после подтверждения платёжного шлюза.
 - **`docs_used` обновляется триггером** — автоматически при INSERT/DELETE в `documents`.
 - **`handle_new_user()`** — триггер на `auth.users` создаёт строку в `profiles` при регистрации.
+- **Одна основная организация** — в БД закреплено ограничение: у одного `user_id` может быть максимум одна запись в `organizations` с `is_main = true` (миграция `backend/supabase/migrations/002_organizations_one_main_per_user.sql`).
