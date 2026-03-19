@@ -54,6 +54,7 @@ VITE_ALLOW_FAKE_ORG_DATA=true
 
 - `backend/supabase/migrations/001_init_schema.sql` — схема БД, триггеры и RLS-политики  
 - `backend/supabase/functions/create-payment/index.ts` — Edge Function для записи в `payments` через `service_role`
+- остальные Edge Functions (например `organizations-*`, `documents-*`, `profile-*`, `payments-list`) — единственная точка доступа к данным из фронтенда (`/functions/v1/*`)
 
 Есть два варианта развёртывания схемы:
 
@@ -107,7 +108,30 @@ backend/                      # Backend (Supabase: БД + Auth + RLS + Edge Func
 │   ├── migrations/
 │   │   └── 001_init_schema.sql   # SQL-схема (таблицы, триггеры, RLS-политики)
 │   └── functions/
-│       └── create-payment/
-│           └── index.ts          # Edge Function с service_role для записи в payments
+│       ├── create-payment/
+│       │   └── index.ts          # Edge Function с service_role для записи в payments
+│       ├── organizations-*/
+│       ├── documents-*/
+│       ├── profile-*/
+│       └── payments-list/
 └── SQL.md                    # текст SQL (справочно)
 ```
+
+---
+## API (Edge Functions)
+
+Frontend не обращается напрямую к таблицам Supabase. Все чтение/запись данных выполняется через Edge Functions по контракту `/functions/v1/*`.
+
+### Read (GET)
+- `GET /functions/v1/organizations-list` — список организаций текущего пользователя
+- `GET /functions/v1/documents-list` — список документов текущего пользователя
+- `GET /functions/v1/profile-get` — профиль текущего пользователя
+- `GET /functions/v1/payments-list` — история платежей текущего пользователя
+
+### Write (POST)
+- `POST /functions/v1/organizations-create` — создать организацию (`body`: `form` в camelCase)
+- `POST /functions/v1/organizations-update` — обновить организацию (`body`: `{ id, form }`)
+- `POST /functions/v1/organizations-delete` — удалить организацию (`body`: `{ id }`)
+- `POST /functions/v1/organizations-set-main` — атомарно установить основную организацию (`body`: `{ id }`)
+- `POST /functions/v1/documents-delete` — удалить документ (`body`: `{ id }`)
+- `POST /functions/v1/profile-update` — обновить профиль (`body`: `{ name, email, phone }`)

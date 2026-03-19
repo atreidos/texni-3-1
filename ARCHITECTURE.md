@@ -64,12 +64,12 @@ frontend/
     │   └── ForgotPasswordPage.jsx # (пока заглушка)
     │
     └── dashboard/
-        ├── DashboardPage.jsx      # fetch documents + organizations join; profile из контекста
-        ├── DocumentsPage.jsx      # fetch documents + organizations join; delete
-        ├── OrganizationsPage.jsx  # полный CRUD: fetch/insert/update/delete; маппинг DB ↔ форма
+        ├── DashboardPage.jsx      # fetch documents via Edge Functions; профиль из контекста
+        ├── DocumentsPage.jsx      # fetch documents via Edge Functions; delete via Edge
+        ├── OrganizationsPage.jsx  # полный CRUD через Edge Functions (DTO mapping на edge)
         ├── SignaturePage.jsx      # (пока заглушка)
-        ├── BillingPage.jsx        # fetch payments; profile из контекста
-        └── SettingsPage.jsx       # update profiles; supabase.auth.updateUser (пароль)
+        ├── BillingPage.jsx        # fetch payments через Edge Functions; профиль из контекста
+        └── SettingsPage.jsx       # update profile через Edge Function; supabase.auth.updateUser (пароль)
 ```
 
 ### Backend (`backend/supabase/` в репозитории, Supabase в облаке)
@@ -82,11 +82,17 @@ backend/
 ├── migrations/
 │   └── 001_init_schema.sql   # SQL-схема БД, триггеры, RLS-политики (вынесено из SQL.md)
 └── functions/
-    └── create-payment/
-        └── index.ts          # Edge Function под service_role для INSERT в payments
+    ├── create-payment/
+    │   └── index.ts          # Edge Function под service_role для INSERT в payments
+    ├── organizations-*/index.ts
+    │                         # organizations CRUD (+ set-main через RPC)
+    ├── documents-*/index.ts # documents list/delete
+    ├── profile-*/index.ts    # profile get/update
+    └── payments-list/index.ts # payments list (история)
 ```
 
-Edge Functions деплоятся через Supabase CLI (`supabase functions deploy create-payment`), а переменные `SUPABASE_URL` и `SUPABASE_SERVICE_ROLE_KEY` задаются в настройках проекта Supabase.
+Edge Functions деплоятся через Supabase CLI. Для `create-payment` используется `SUPABASE_SERVICE_ROLE_KEY`.
+Для остальных функций используется `SUPABASE_ANON_KEY` + JWT пользователя из заголовка `Authorization`, чтобы корректно работали `auth.uid()` и RLS-политики.
 
 ---
 
@@ -134,10 +140,10 @@ Edge Functions деплоятся через Supabase CLI (`supabase functions d
 | Данные | Источник | Таблица / API |
 |--------|----------|---------------|
 | Сессия, токен | Supabase Auth | `auth.users` |
-| Профиль (имя, план, лимиты) | `AuthContext.profile` | `profiles` |
-| Документы | fetch при монтировании | `documents` JOIN `organizations` |
-| Организации | fetch при монтировании | `organizations` |
-| История платежей | fetch при монтировании | `payments` |
+| Профиль (имя, план, лимиты) | `AuthContext.profile` | `/functions/v1/profile-get` |
+| Документы | fetch при монтировании | `/functions/v1/documents-list` |
+| Организации | fetch при монтировании | `/functions/v1/organizations-list` |
+| История платежей | fetch при монтировании | `/functions/v1/payments-list` |
 | Тарифы (описание) | `mockData.js` | статика на фронте |
 | Поля редактора | `mockData.js` | статика на фронте |
 | Отзывы | `mockData.js` | статика на фронте |
@@ -154,7 +160,7 @@ Edge Functions деплоятся через Supabase CLI (`supabase functions d
 | `bank.checkingAccount` | `checking_account` |
 | `bank.correspondentAccount` | `correspondent_account` |
 
-Функции `orgFromDb()` и `orgToDb()` в `OrganizationsPage.jsx` инкапсулируют этот маппинг.
+Маппинг snake_case ↔ camelCase для организаций выполняется в Edge Functions (`organizations-list`, `organizations-create`, `organizations-update`).
 
 ### loading / error states
 
@@ -168,8 +174,10 @@ Edge Functions деплоятся через Supabase CLI (`supabase functions d
 
 ## Правило авторизации для write-операций
 
-Все `POST / PUT / PATCH / DELETE` запросы выполняются только при `isLoggedIn === true`.  
-RLS на стороне Supabase дублирует эту защиту независимо от фронтенда.
+Front-end для UX ограничивает доступ к write-операциям (только когда `isLoggedIn === true`), но серверная защита работает независимо:
+- Edge Functions используют `SUPABASE_ANON_KEY` + JWT пользователя из `Authorization` (чтобы `auth.uid()` был корректным)
+- RLS-политики на стороне Supabase применяются автоматически при чтении/записи
+- `create-payment` является исключением: он использует `SUPABASE_SERVICE_ROLE_KEY`, потому что платежи создаются не от имени пользователя
 
 ---
 

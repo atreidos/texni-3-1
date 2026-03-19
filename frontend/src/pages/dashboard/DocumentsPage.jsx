@@ -8,7 +8,7 @@ import { Search, FileText, Download, Trash2, ExternalLink, Filter, AlertCircle, 
 import DashboardLayout from '../../components/DashboardLayout';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { callEdgeFunction, fetchFromEdge } from '../../lib/supabase';
 
 // Форматируем размер в байтах → «48 КБ»
 function formatSize(bytes) {
@@ -46,20 +46,20 @@ export default function DocumentsPage() {
   async function fetchDocs() {
     setLoading(true);
     setError(null);
-    const query = supabase
-      .from('documents')
-      .select('*, organizations(name)')
-      .eq('user_id', user.id)
-      .order('updated_at', { ascending: false });
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error(LOAD_TIMEOUT_MSG)), LOAD_TIMEOUT_MS)
     );
     try {
-      const { data, error: err } = await Promise.race([query, timeoutPromise]);
+      const queryPromise = (async () => {
+        const { data, error } = await fetchFromEdge('documents-list');
+        return { data, error };
+      })();
+
+      const { data, error: err } = await Promise.race([queryPromise, timeoutPromise]);
       if (err) {
         setError(err.message);
       } else {
-        setDocs(data || []);
+        setDocs(data?.data || []);
       }
     } catch (e) {
       setError(e?.message || LOAD_TIMEOUT_MSG);
@@ -69,10 +69,7 @@ export default function DocumentsPage() {
   }
 
   async function handleDelete(id) {
-    const { error: err } = await supabase
-      .from('documents')
-      .delete()
-      .eq('id', id);
+    const { error: err } = await callEdgeFunction('documents-delete', { id });
 
     if (err) {
       alert(`Ошибка удаления: ${err.message}`);
@@ -90,8 +87,8 @@ export default function DocumentsPage() {
 
   // Сортировка по дате изменения
   const sorted = [...filtered].sort((a, b) => {
-    const aTime = a.updated_at ? new Date(a.updated_at).getTime() : 0;
-    const bTime = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+    const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+    const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
     return sortOrder === 'desc' ? bTime - aTime : aTime - bTime;
   });
 
@@ -189,16 +186,16 @@ export default function DocumentsPage() {
                           <div>
                             <p className="text-sm font-medium text-slate-800">{doc.name}</p>
                             <p className="text-xs text-slate-400">
-                              {doc.type.toUpperCase()} · {formatSize(doc.size_bytes)}
+                              {doc.type.toUpperCase()} · {formatSize(doc.sizeBytes)}
                             </p>
                           </div>
                         </div>
                       </td>
                       <td className="px-5 py-3.5 hidden md:table-cell">
-                        <p className="text-sm text-slate-600">{doc.organizations?.name ?? '—'}</p>
+                        <p className="text-sm text-slate-600">{doc.organizationName ?? '—'}</p>
                       </td>
                       <td className="px-5 py-3.5 hidden sm:table-cell">
-                        <p className="text-sm text-slate-500">{formatDate(doc.updated_at)}</p>
+                        <p className="text-sm text-slate-500">{formatDate(doc.updatedAt)}</p>
                       </td>
                       <td className="px-5 py-3.5">
                         <StatusBadge status={doc.status} />

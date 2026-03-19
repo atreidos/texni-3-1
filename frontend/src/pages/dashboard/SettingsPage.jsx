@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { Camera, AlertTriangle, Loader2, AlertCircle } from 'lucide-react';
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { callEdgeFunction, supabase } from '../../lib/supabase';
 
 export default function SettingsPage() {
   const { user, profile, logout, refreshProfile } = useAuth();
@@ -44,17 +44,14 @@ export default function SettingsPage() {
     setProfileError('');
     setProfileSaving(true);
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        name: profileForm.name,
-        email: profileForm.email,
-        phone: profileForm.phone || null,
-      })
-      .eq('id', user.id);
+    const { error: err } = await callEdgeFunction('profile-update', {
+      name: profileForm.name,
+      email: profileForm.email,
+      phone: profileForm.phone || null,
+    });
 
-    if (error) {
-      setProfileError(error.message);
+    if (err) {
+      setProfileError(err.message);
     } else {
       await refreshProfile();
       setProfileSaved(true);

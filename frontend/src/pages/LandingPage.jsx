@@ -216,7 +216,7 @@ export default function LandingPage() {
               <div key={t.id} className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
                 {/* Звёзды */}
                 <div className="flex gap-1 mb-4">
-                  {Array.from({ length: t.rating }).map((_, i) => (
+                  {[...Array(t.rating)].map((_, i) => (
                     <Star key={i} size={16} className="text-amber-400 fill-amber-400" />
                   ))}
                 </div>

@@ -27,61 +27,113 @@ if (!supabaseUrl.includes('supabase.co') || supabaseUrl.includes('localhost')) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
- * Вставка организации через прямой fetch с обработкой 401:
- * - первый запрос с текущим access_token
- * - при 401 → один refreshSession() и повтор запроса
- * - при повторном 401 или ошибке refresh → signOut + редирект на /auth/login
+ * POST в Edge Function с обработкой 401:
+ * - первая попытка с текущим access_token (или anon key)
+ * - при 401 → refreshSession() и повтор
+ * - при повторном 401/ошибке refresh → signOut + редирект на /auth/login
  */
-export async function insertOrganizationViaFetch(payload) {
-  const url = supabaseUrl + '/rest/v1/organizations';
+export async function callEdgeFunction(functionName, payload) {
+  const url = supabaseUrl + '/functions/v1/' + functionName;
 
   async function attempt() {
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     const token = session?.access_token || supabaseAnonKey;
-    const headers = {
-      'Content-Type': 'application/json',
-      apikey: supabaseAnonKey,
-      Authorization: 'Bearer ' + token,
-      Prefer: 'return=minimal',
-    };
-    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + token,
+      },
+      body: JSON.stringify(payload),
+    });
     const status = res.status;
     if (!res.ok) {
       const text = await res.text();
       let msg = status + ' ' + res.statusText;
       try {
         const j = JSON.parse(text);
+        if (j?.error) msg = j.error;
         if (j?.message) msg = j.message;
-        if (j?.details) msg += ': ' + j.details;
       } catch (_) {}
-      return { status, error: { message: msg } };
+      return { status, data: null, error: { message: msg } };
     }
-    return { status, error: null };
+    const data = await res.json();
+    return { status, data, error: null };
   }
 
-  // Первая попытка
-  let { status, error } = await attempt();
-  if (status !== 401) {
-    return { error };
-  }
+  let { status, data, error } = await attempt();
+  if (status !== 401) return { data, error };
 
-  // 401 → пробуем один раз обновить сессию
   const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
   if (refreshError || !refreshed?.session) {
-    // refresh не удался — выходим и отправляем на логин
     await supabase.auth.signOut();
     window.location.assign('/auth/login');
-    return { error: error || { message: 'Сессия истекла, войдите снова.' } };
+    return { data: null, error: error || { message: 'Сессия истекла, войдите снова.' } };
   }
 
-  // Вторая попытка с обновлённой сессией
-  ({ status, error } = await attempt());
+  ({ status, data, error } = await attempt());
   if (status === 401) {
-    // Повторный 401 — очищаем сессию и просим перелогиниться
     await supabase.auth.signOut();
     window.location.assign('/auth/login');
-    return { error: error || { message: 'Сессия истекла, войдите снова.' } };
+    return { data: null, error: error || { message: 'Сессия истекла, войдите снова.' } };
   }
 
-  return { error };
+  return { data, error };
+}
+
+/**
+ * GET в Edge Function с обработкой 401:
+ * - первая попытка с текущим access_token (или anon key)
+ * - при 401 → refreshSession() и повтор
+ * - при повторном 401/ошибке refresh → signOut + редирект на /auth/login
+ */
+export async function fetchFromEdge(functionName) {
+  const url = supabaseUrl + '/functions/v1/' + functionName;
+
+  async function attempt() {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token || supabaseAnonKey;
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: 'Bearer ' + token,
+      },
+    });
+    const status = res.status;
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = status + ' ' + res.statusText;
+      try {
+        const j = JSON.parse(text);
+        if (j?.error) msg = j.error;
+        if (j?.message) msg = j.message;
+      } catch (_) {}
+      return { status, data: null, error: { message: msg } };
+    }
+    const data = await res.json();
+    return { status, data, error: null };
+  }
+
+  let { status, data, error } = await attempt();
+  if (status !== 401) return { data, error };
+
+  const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+  if (refreshError || !refreshed?.session) {
+    await supabase.auth.signOut();
+    window.location.assign('/auth/login');
+    return { data: null, error: error || { message: 'Сессия истекла, войдите снова.' } };
+  }
+
+  ({ status, data, error } = await attempt());
+  if (status === 401) {
+    await supabase.auth.signOut();
+    window.location.assign('/auth/login');
+    return { data: null, error: error || { message: 'Сессия истекла, войдите снова.' } };
+  }
+
+  return { data, error };
 }

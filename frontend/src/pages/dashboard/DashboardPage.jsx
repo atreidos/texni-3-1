@@ -8,7 +8,7 @@ import { Upload, Building2, FileText, ArrowRight, AlertCircle, Loader2 } from 'l
 import DashboardLayout from '../../components/DashboardLayout';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { fetchFromEdge } from '../../lib/supabase';
 import { PLAN_LABELS } from '../../data/mockData';
 
 // Форматируем дату из ISO-строки в YYYY-MM-DD
@@ -31,26 +31,17 @@ export default function DashboardPage() {
     async function fetchDocs() {
       setLoading(true);
       setError(null);
-      const { data, error: err } = await supabase
-        .from('documents')
-        .select('*, organizations(name)')
-        .eq('user_id', user.id)
-        .order('updated_at', { ascending: false })
-        .limit(4);
-
-      if (err) {
-        setError(err.message);
-      } else {
-        setDocs(data || []);
-      }
+      const { data, error: err } = await fetchFromEdge('documents-list');
+      if (err) setError(err.message);
+      else setDocs((data?.data || []).slice(0, 4));
       setLoading(false);
     }
 
     fetchDocs();
   }, [user?.id]);
 
-  const docsUsed = profile?.docs_used ?? 0;
-  const docsLimit = profile?.docs_limit ?? 1;
+  const docsUsed = profile?.docsUsed ?? 0;
+  const docsLimit = profile?.docsLimit ?? 1;
   const usagePercent = Math.min(Math.round((docsUsed / docsLimit) * 100), 100);
 
   return (
@@ -126,7 +117,7 @@ export default function DashboardPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-800 truncate">{doc.name}</p>
                     <p className="text-xs text-slate-400">
-                      {doc.organizations?.name ?? '—'} · {formatDate(doc.updated_at)}
+                      {doc.organizationName ?? '—'} · {formatDate(doc.updatedAt)}
                     </p>
                   </div>
                   <StatusBadge status={doc.status} />
@@ -170,9 +161,9 @@ export default function DashboardPage() {
             <p className="text-xs text-slate-400 mt-1">{usagePercent}% использовано</p>
           </div>
 
-          {profile?.plan_expires && (
+          {profile?.planExpires && (
             <p className="text-xs text-slate-400 mb-4">
-              Действует до: <strong className="text-slate-600">{profile.plan_expires}</strong>
+              Действует до: <strong className="text-slate-600">{profile.planExpires}</strong>
             </p>
           )}
 

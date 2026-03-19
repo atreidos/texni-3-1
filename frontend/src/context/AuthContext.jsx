@@ -4,7 +4,7 @@
 // ============================================================
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, fetchFromEdge } from '../lib/supabase';
 
 const AuthContext = createContext(null);
 
@@ -18,14 +18,27 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   // Загружаем профиль из БД по userId (при ошибке профиль остаётся null, loading снимается)
-  const fetchProfile = useCallback(async (userId) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    if (!error) setProfile(data);
-    else setProfile(null);
+  const fetchProfile = useCallback(async () => {
+    const { data, error } = await fetchFromEdge('profile-get');
+    if (error) {
+      setProfile(null);
+      return;
+    }
+    if (!data) {
+      setProfile(null);
+      return;
+    }
+
+    // Edge Function возвращает camelCase, но оставляем "мягкие" маппинги,
+    // чтобы не падать при возможных несостыковках контрактов.
+    setProfile({
+      ...data,
+      planExpires: data.planExpires ?? data.plan_expires ?? null,
+      docsUsed: data.docsUsed ?? data.docs_used ?? 0,
+      docsLimit: data.docsLimit ?? data.docs_limit ?? 0,
+      updatedAt: data.updatedAt ?? data.updated_at ?? null,
+      createdAt: data.createdAt ?? data.created_at ?? null,
+    });
   }, []);
 
   useEffect(() => {
@@ -65,7 +78,7 @@ export function AuthProvider({ children }) {
           const freshUser = refreshed.session.user;
           setUser(freshUser);
           setIsLoggedIn(true);
-          await fetchProfile(freshUser.id);
+          await fetchProfile();
         } finally {
           if (!cancelled) setLoading(false);
         }
@@ -88,7 +101,7 @@ export function AuthProvider({ children }) {
           if (session?.user) {
             setUser(session.user);
             setIsLoggedIn(true);
-            await fetchProfile(session.user.id);
+            await fetchProfile();
           } else {
             setUser(null);
             setProfile(null);
@@ -131,7 +144,7 @@ export function AuthProvider({ children }) {
 
   // Позволяет обновить profile в контексте после изменений в SettingsPage
   async function refreshProfile() {
-    if (user?.id) await fetchProfile(user.id);
+    if (user?.id) await fetchProfile();
   }
 
   return (

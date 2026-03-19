@@ -7,7 +7,7 @@ import { CreditCard, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import DashboardLayout from '../../components/DashboardLayout';
 import PricingCard from '../../components/PricingCard';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { fetchFromEdge } from '../../lib/supabase';
 import { mockPlans, PLAN_LABELS } from '../../data/mockData';
 
 // Форматируем дату оплаты
@@ -54,25 +54,17 @@ export default function BillingPage() {
     async function fetchPayments() {
       setLoadingPayments(true);
       setPaymentsError(null);
-      const { data, error: err } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (err) {
-        setPaymentsError(err.message);
-      } else {
-        setPayments(data || []);
-      }
+      const { data, error: err } = await fetchFromEdge('payments-list');
+      if (err) setPaymentsError(err.message);
+      else setPayments(data?.data || []);
       setLoadingPayments(false);
     }
 
     fetchPayments();
   }, [user?.id]);
 
-  const docsUsed = profile?.docs_used ?? 0;
-  const docsLimit = profile?.docs_limit ?? 1;
+  const docsUsed = profile?.docsUsed ?? 0;
+  const docsLimit = profile?.docsLimit ?? 1;
   const plan = profile?.plan ?? 'free';
 
   return (
@@ -91,9 +83,9 @@ export default function BillingPage() {
                 {plan.toUpperCase()}
               </span>
             </div>
-            {profile?.plan_expires && (
+            {profile?.planExpires && (
               <p className="text-sm text-slate-500 mt-1">
-                Действует до: <strong>{profile.plan_expires}</strong>
+                Действует до: <strong>{profile.planExpires}</strong>
               </p>
             )}
           </div>
@@ -181,7 +173,7 @@ export default function BillingPage() {
             <tbody className="divide-y divide-slate-50">
               {payments.map(p => (
                 <tr key={p.id} className="hover:bg-slate-50">
-                  <td className="px-5 py-3 text-sm text-slate-600">{formatDate(p.paid_at ?? p.created_at)}</td>
+                  <td className="px-5 py-3 text-sm text-slate-600">{formatDate(p.paidAt ?? p.createdAt)}</td>
                   <td className="px-5 py-3 text-sm text-slate-600">{PLAN_LABELS[p.plan] ?? p.plan}</td>
                   <td className="px-5 py-3 text-sm font-medium text-slate-800">{Number(p.amount).toLocaleString('ru-RU')} ₽</td>
                   <td className="px-5 py-3">

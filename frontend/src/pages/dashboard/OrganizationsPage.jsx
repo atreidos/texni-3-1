@@ -7,7 +7,7 @@ import { Plus, Edit2, Trash2, Star, Building2, AlertCircle, Loader2 } from 'luci
 import DashboardLayout from '../../components/DashboardLayout';
 import Modal from '../../components/Modal';
 import { useAuth } from '../../context/AuthContext';
-import { supabase, insertOrganizationViaFetch } from '../../lib/supabase';
+import { callEdgeFunction, fetchFromEdge } from '../../lib/supabase';
 import { allowFakeOrgData } from '../../config';
 import { fakeOrgForm } from '../../data/mockData';
 
@@ -17,47 +17,7 @@ const emptyOrg = {
   bank: { bik: '', bankName: '', checkingAccount: '', correspondentAccount: '' },
 };
 
-// ============================================================
-// Маппинг: строка БД → форма фронтенда
-// ============================================================
-function orgFromDb(row) {
-  return {
-    id: row.id,
-    name: row.name,
-    inn: row.inn,
-    kpp: row.kpp ?? '',
-    ogrn: row.ogrn ?? '',
-    address: row.address ?? '',
-    phone: row.phone ?? '',
-    email: row.email ?? '',
-    isMain: row.is_main,
-    bank: {
-      bik: row.bank_bik ?? '',
-      bankName: row.bank_name ?? '',
-      checkingAccount: row.checking_account ?? '',
-      correspondentAccount: row.correspondent_account ?? '',
-    },
-  };
-}
-
-// Маппинг: форма фронтенда → объект для вставки/обновления в БД
-function orgToDb(form, userId) {
-  return {
-    user_id: userId,
-    name: form.name,
-    inn: form.inn,
-    kpp: form.kpp || null,
-    ogrn: form.ogrn || null,
-    address: form.address || null,
-    phone: form.phone || null,
-    email: form.email || null,
-    is_main: form.isMain ?? false,
-    bank_bik: form.bank?.bik || null,
-    bank_name: form.bank?.bankName || null,
-    checking_account: form.bank?.checkingAccount || null,
-    correspondent_account: form.bank?.correspondentAccount || null,
-  };
-}
+// Edge Functions возвращают DTO в camelCase.
 
 // ============================================================
 // Правила валидации по российским форматам реквизитов
@@ -151,18 +111,14 @@ export default function OrganizationsPage() {
     );
     try {
       const queryPromise = (async () => {
-        const res = await supabase
-          .from('organizations')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('is_main', { ascending: false });
-        return res;
+        const { data, error } = await fetchFromEdge('organizations-list');
+        return { data, error };
       })();
       const { data, error: err } = await Promise.race([queryPromise, timeoutPromise]);
       if (err) {
         setListError(err.message);
       } else {
-        setOrgs((data || []).map(orgFromDb));
+        setOrgs(data?.data || []);
       }
     } catch (e) {
       setListError(e?.message || LOAD_TIMEOUT_MSG);
@@ -228,16 +184,18 @@ export default function OrganizationsPage() {
 
       try {
         if (editOrg) {
-          const { error: err } = await supabase
-            .from('organizations')
-            .update(orgToDb(form, user.id))
-            .eq('id', editOrg.id);
+          const { data: res, error: err } = await callEdgeFunction('organizations-update', {
+            id: editOrg.id,
+            form,
+          });
           clearTimeout(timeoutId);
           if (err) throw new Error(err.message);
-          setOrgs(prev => prev.map(o => o.id === editOrg.id ? { ...orgFromDb({ ...orgToDb(form, user.id), id: editOrg.id, is_main: form.isMain }) } : o));
+          const updated = res?.data;
+          setOrgs(prev =>
+            prev.map(o => (o.id === editOrg.id ? (updated || { ...form, id: editOrg.id }) : o)),
+          );
         } else {
-          const payload = orgToDb(form, user.id);
-          const { error: err } = await insertOrganizationViaFetch(payload);
+          const { error: err } = await callEdgeFunction('organizations-create', form);
           clearTimeout(timeoutId);
           if (err) throw new Error(err.message);
           await fetchOrgs();
@@ -256,10 +214,7 @@ export default function OrganizationsPage() {
   }
 
   async function handleDelete(id) {
-    const { error: err } = await supabase
-      .from('organizations')
-      .delete()
-      .eq('id', id);
+    const { error: err } = await callEdgeFunction('organizations-delete', { id });
 
     if (err) {
       alert(`Ошибка удаления: ${err.message}`);
@@ -269,17 +224,7 @@ export default function OrganizationsPage() {
   }
 
   async function handleSetMain(id) {
-    // Снимаем is_main со всех организаций пользователя
-    await supabase
-      .from('organizations')
-      .update({ is_main: false })
-      .eq('user_id', user.id);
-
-    // Устанавливаем is_main для выбранной
-    const { error: err } = await supabase
-      .from('organizations')
-      .update({ is_main: true })
-      .eq('id', id);
+    const { error: err } = await callEdgeFunction('organizations-set-main', { id });
 
     if (err) {
       alert(`Ошибка: ${err.message}`);
