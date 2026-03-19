@@ -2,13 +2,13 @@
 // LoginPage — страница входа /auth/login
 // ============================================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FileText, Eye, EyeOff, ExternalLink, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, isLoggedIn } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -16,6 +16,11 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Редирект после успешного входа (isLoggedIn обновляется в onAuthStateChange асинхронно)
+  useEffect(() => {
+    if (isLoggedIn) navigate('/dashboard', { replace: true });
+  }, [isLoggedIn, navigate]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -27,12 +32,13 @@ export default function LoginPage() {
     }
 
     setLoading(true);
+    const timeoutId = setTimeout(() => setLoading(false), 15000); // страховка от зависания
     try {
       await login(email, password);
-      navigate('/dashboard');
     } catch (err) {
       setError(err.message || 'Неверный email или пароль');
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   }

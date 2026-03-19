@@ -39,7 +39,10 @@ export async function callEdgeFunction(functionName, payload) {
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    const token = session?.access_token || supabaseAnonKey;
+    const token = session?.access_token;
+    if (!token) {
+      return { status: 401, data: null, error: { message: 'Not authenticated' } };
+    }
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -85,18 +88,20 @@ export async function callEdgeFunction(functionName, payload) {
 
 /**
  * GET в Edge Function с обработкой 401:
- * - первая попытка с текущим access_token (или anon key)
+ * - первая попытка с access_token (из опций или getSession())
  * - при 401 → refreshSession() и повтор
  * - при повторном 401/ошибке refresh → signOut + редирект на /auth/login
+ * @param {string} functionName - имя функции, например 'profile-get'
+ * @param {{ token?: string }} options - опционально token (например только что из refreshSession)
  */
-export async function fetchFromEdge(functionName) {
+export async function fetchFromEdge(functionName, options = {}) {
   const url = supabaseUrl + '/functions/v1/' + functionName;
 
-  async function attempt() {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const token = session?.access_token || supabaseAnonKey;
+  async function attempt(useToken) {
+    const token = useToken ?? (await supabase.auth.getSession()).data?.session?.access_token;
+    if (!token) {
+      return { status: 401, data: null, error: { message: 'Not authenticated' } };
+    }
     const res = await fetch(url, {
       method: 'GET',
       headers: {
@@ -118,7 +123,7 @@ export async function fetchFromEdge(functionName) {
     return { status, data, error: null };
   }
 
-  let { status, data, error } = await attempt();
+  let { status, data, error } = await attempt(options.token);
   if (status !== 401) return { data, error };
 
   const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
@@ -128,7 +133,7 @@ export async function fetchFromEdge(functionName) {
     return { data: null, error: error || { message: 'Сессия истекла, войдите снова.' } };
   }
 
-  ({ status, data, error } = await attempt());
+  ({ status, data, error } = await attempt(refreshed.session.access_token));
   if (status === 401) {
     await supabase.auth.signOut();
     window.location.assign('/auth/login');

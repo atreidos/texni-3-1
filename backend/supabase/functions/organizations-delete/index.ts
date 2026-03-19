@@ -49,7 +49,7 @@ serve(async (req) => {
       });
     }
 
-    const { error: authError } = await supabase.auth.getUser();
+    const { error: authError } = await supabase.auth.getUser(jwt);
     if (authError) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,

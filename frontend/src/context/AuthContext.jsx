@@ -17,20 +17,22 @@ export function AuthProvider({ children }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Загружаем профиль из БД по userId (при ошибке профиль остаётся null, loading снимается)
-  const fetchProfile = useCallback(async () => {
-    const { data, error } = await fetchFromEdge('profile-get');
+  // Загружаем профиль из БД (при ошибке профиль остаётся null).
+  // token — опционально, если только что получили из refreshSession (избегаем гонки с getSession).
+  const fetchProfile = useCallback(async (token) => {
+    const opts = token ? { token } : {};
+    const { data: res, error } = await fetchFromEdge('profile-get', opts);
     if (error) {
       setProfile(null);
       return;
     }
+    // Edge возвращает { data: profile }
+    const data = res?.data ?? res;
     if (!data) {
       setProfile(null);
       return;
     }
 
-    // Edge Function возвращает camelCase, но оставляем "мягкие" маппинги,
-    // чтобы не падать при возможных несостыковках контрактов.
     setProfile({
       ...data,
       planExpires: data.planExpires ?? data.plan_expires ?? null,
@@ -78,7 +80,7 @@ export function AuthProvider({ children }) {
           const freshUser = refreshed.session.user;
           setUser(freshUser);
           setIsLoggedIn(true);
-          await fetchProfile();
+          await fetchProfile(refreshed.session.access_token);
         } finally {
           if (!cancelled) setLoading(false);
         }
@@ -99,9 +101,10 @@ export function AuthProvider({ children }) {
         try {
           if (cancelled) return;
           if (session?.user) {
+            // При SIGNED_IN сессия уже свежая, refreshSession может подвисать — не вызываем
             setUser(session.user);
             setIsLoggedIn(true);
-            await fetchProfile();
+            await fetchProfile(session.access_token);
           } else {
             setUser(null);
             setProfile(null);
