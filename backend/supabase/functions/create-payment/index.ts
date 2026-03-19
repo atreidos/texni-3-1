@@ -1,12 +1,12 @@
 // supabase/functions/create-payment/index.ts
-// Edge Function для безопасного создания записей в таблице `payments`.
-// Работает только с service_role ключом (только на бэкенде Supabase).
+// Edge Function to insert payment data into the `payments` table.
+// Uses the Supabase `service_role` key for privileged database writes.
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-// Эти переменные задаются в настройках проекта Supabase (Project > Settings > API / Functions)
+// Supabase credentials are read from Project > Settings > API / Functions.
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-// service_role используется только здесь, на Edge Function, на фронт он не попадает
+// `service_role` is a secret key; keep it server-side only (Edge Function).
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
   auth: {
     persistSession: false,
@@ -18,9 +18,10 @@ serve(async (req) => {
     return new Response("Method Not Allowed", { status: 405 });
   }
   try {
-    // TODO: здесь обычно проверяется подпись/секрет от платёжного провайдера (Stripe/YooKassa/...)
+    // TODO: replace the stub with real payment event validation (Stripe/YooKassa/...).
     const body = await req.json();
-    // Ожидаемые поля. В реальном проекте лучше сделать строгую схему и валидацию.
+    // Expected payload: `user_id`, `plan`, `amount`, optional `status`, `paid_at`.
+    // Accept JSON input and insert a row into `payments`.
     const {
       user_id,
       plan,
