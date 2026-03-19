@@ -6,3 +6,14 @@
 - Атомарная установка основной организации: добавлен Postgres RPC `public.set_organization_main(p_org_id uuid)` и Edge Function `organizations-set-main`, которая вызывает RPC, чтобы заменить два UPDATE на одну транзакцию.
 - **401 при входе в организации / dashboard**: Исправлено переходом на `supabase.functions.invoke()` вместо ручного `fetch`. Клиент Supabase сам подставляет access_token и заголовки. Edge Functions profile-get, documents-list, organizations-list, payments-list теперь принимают и GET, и POST (invoke отправляет POST). **Нужно задеплоить Edge Functions**: `cd backend && supabase link` (если ещё не связан), затем `supabase functions deploy profile-get documents-list organizations-list payments-list`.
 
+## Авторизация и валидация (план доработок)
+
+- **ForgotPasswordPage** — заглушка заменена на реальный вызов `supabase.auth.resetPasswordForEmail(email)`. RedirectTo: `/auth/reset-password`. Добавлена страница ResetPasswordPage для установки нового пароля после клика по ссылке из письма.
+- **Политика паролей** — минимум 8 символов (было 6) на RegisterPage, SettingsPage (смена пароля), ResetPasswordPage.
+- **Валидация email** — формат `[^\s@]+@[^\s@]+\.[^\s@]+` на LoginPage, RegisterPage, ForgotPasswordPage.
+- **VITE_SHOW_ERRORS** — в production всегда `false`; показ ошибок разрешён только при `import.meta.env.DEV` и явном `VITE_SHOW_ERRORS=true`.
+- **.env.example** — создан в `frontend/.env.example` с заглушками VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_SHOW_ERRORS, VITE_ALLOW_FAKE_ORG_DATA. .gitignore уже содержит `.env`.
+- **profile-update** Edge Function — серверная валидация: name (обязательно, ≤200), email (обязательно, формат, ≤254), phone (формат, ≤30, опционально).
+- **organizations-create, organizations-update** Edge Functions — серверная валидация реквизитов: name, INN (10/12 цифр), OGRN (13/15 цифр), KPP (9 цифр, опц.), BIK (9 цифр, опц.), расчётный и корр. счёт (20 цифр, опц.) — согласовано с CHECK в БД.
+- **403 для чужих данных**: documents-delete, organizations-delete, organizations-update, organizations-set-main перед операцией проверяют владельца через SELECT (RLS фильтрует чужие записи); при отсутствии доступа возвращают 403 и `{ error: "Доступ запрещён" }`.
+

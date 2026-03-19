@@ -11,6 +11,45 @@ const CORS_HEADERS = {
   "Content-Type": "application/json",
 };
 
+const INN_REGEX = /^\d{10}$|^\d{12}$/;
+const KPP_REGEX = /^\d{9}$/;
+const OGRN_REGEX = /^\d{13}$|^\d{15}$/;
+const BIK_REGEX = /^\d{9}$/;
+const ACCOUNT_REGEX = /^\d{20}$/;
+
+function validateOrgForm(form: Record<string, unknown>): string | null {
+  const name = String(form?.name ?? "").trim();
+  if (!name) return "Название организации обязательно";
+
+  const inn = String(form?.inn ?? "").trim();
+  if (!inn) return "ИНН обязателен";
+  if (!INN_REGEX.test(inn)) return "ИНН — 10 цифр (юрлицо) или 12 цифр (ИП)";
+
+  const ogrn = String(form?.ogrn ?? "").trim();
+  if (!ogrn) return "ОГРН обязателен";
+  if (!OGRN_REGEX.test(ogrn)) return "ОГРН — 13 цифр (юрлицо) или 15 цифр (ИП)";
+
+  const kpp = form?.kpp ? String(form.kpp).trim() : null;
+  if (kpp && !KPP_REGEX.test(kpp)) return "КПП — 9 цифр";
+
+  const bik = form?.bank && typeof form.bank === "object" && form.bank !== null
+    ? String((form.bank as Record<string, unknown>).bik ?? "").trim()
+    : "";
+  if (bik !== "" && !BIK_REGEX.test(bik)) return "БИК — 9 цифр";
+
+  const checkingAccount = form?.bank && typeof form.bank === "object" && form.bank !== null
+    ? String((form.bank as Record<string, unknown>).checkingAccount ?? "").trim()
+    : "";
+  if (checkingAccount !== "" && !ACCOUNT_REGEX.test(checkingAccount)) return "Расчётный счёт — 20 цифр";
+
+  const correspondentAccount = form?.bank && typeof form.bank === "object" && form.bank !== null
+    ? String((form.bank as Record<string, unknown>).correspondentAccount ?? "").trim()
+    : "";
+  if (correspondentAccount !== "" && !ACCOUNT_REGEX.test(correspondentAccount)) return "Корр. счёт — 20 цифр";
+
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
@@ -53,6 +92,14 @@ serve(async (req) => {
     const form = body?.form ?? body;
     if (!form) {
       return new Response(JSON.stringify({ error: "Invalid payload" }), {
+        status: 400,
+        headers: CORS_HEADERS,
+      });
+    }
+
+    const validationError = validateOrgForm(form);
+    if (validationError) {
+      return new Response(JSON.stringify({ error: validationError }), {
         status: 400,
         headers: CORS_HEADERS,
       });

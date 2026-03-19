@@ -17,7 +17,13 @@ npm install
 
 ### 2. Настройте переменные окружения
 
-Создайте файл `.env` в `frontend/` (если его ещё нет):
+Скопируйте `frontend/.env.example` в `frontend/.env` и заполните значения:
+
+```bash
+cp frontend/.env.example frontend/.env
+```
+
+Пример содержимого `.env`:
 
 ```env
 VITE_SUPABASE_URL=https://your-project-id.supabase.co
@@ -46,6 +52,8 @@ VITE_ALLOW_FAKE_ORG_DATA=true
 - `VITE_SUPABASE_ANON_KEY` — поле **anon / public** в разделе Project API Keys
 
 После изменения `.env` перезапустите `npm run dev`. В Network (F12) запросы к API идут на ваш домен Supabase (`*.supabase.co`), а не на localhost.
+
+**Для восстановления пароля:** в Supabase Dashboard → Auth → URL Configuration добавьте `https://your-domain.com/auth/reset-password` (и `http://localhost:5173/auth/reset-password` для локальной разработки) в Redirect URLs.
 > Префикс `VITE_` обязателен — Vite экспонирует в браузер только переменные с этим префиксом.
 
 ### 3. Разверните backend (Supabase)
@@ -101,7 +109,8 @@ frontend/                     # Frontend (React + Vite), выполняется 
 ├── vite.config.js            # конфиг Vite
 ├── eslint.config.js          # конфиг ESLint
 ├── package.json              # зависимости и скрипты фронта
-└── .env                      # переменные окружения Vite (не коммитить)
+├── .env.example               # шаблон переменных окружения (в репо)
+└── .env                       # переменные окружения Vite (не коммитить — в .gitignore)
 
 backend/                      # Backend (Supabase: БД + Auth + RLS + Edge Functions)
 ├── supabase/
@@ -135,3 +144,8 @@ Frontend не обращается напрямую к таблицам Supabase
 - `POST /functions/v1/organizations-set-main` — атомарно установить основную организацию (`body`: `{ id }`)
 - `POST /functions/v1/documents-delete` — удалить документ (`body`: `{ id }`)
 - `POST /functions/v1/profile-update` — обновить профиль (`body`: `{ name, email, phone }`)
+
+---
+## Безопасность
+
+Рекомендации по настройке и эксплуатации — см. [SECURITY.md](SECURITY.md).

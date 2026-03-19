@@ -60,6 +60,18 @@ serve(async (req) => {
       });
     }
 
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("id")
+      .eq("id", body.id)
+      .maybeSingle();
+    if (!org) {
+      return new Response(JSON.stringify({ error: "Доступ запрещён" }), {
+        status: 403,
+        headers: CORS_HEADERS,
+      });
+    }
+
     const { error } = await supabase.rpc("set_organization_main", {
       p_org_id: body.id,
     });

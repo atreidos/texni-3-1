@@ -49,10 +49,25 @@ serve(async (req) => {
       });
     }
 
-    const { error: authError } = await supabase.auth.getUser(jwt);
-    if (authError) {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser(jwt);
+    if (userError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
+        headers: CORS_HEADERS,
+      });
+    }
+
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("id")
+      .eq("id", body.id)
+      .maybeSingle();
+    if (!org) {
+      return new Response(JSON.stringify({ error: "Доступ запрещён" }), {
+        status: 403,
         headers: CORS_HEADERS,
       });
     }

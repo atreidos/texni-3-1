@@ -60,6 +60,18 @@ serve(async (req) => {
       });
     }
 
+    const { data: doc } = await supabase
+      .from("documents")
+      .select("id")
+      .eq("id", body.id)
+      .maybeSingle();
+    if (!doc) {
+      return new Response(JSON.stringify({ error: "Доступ запрещён" }), {
+        status: 403,
+        headers: CORS_HEADERS,
+      });
+    }
+
     const { error } = await supabase
       .from("documents")
       .delete()

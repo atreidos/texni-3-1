@@ -11,6 +11,32 @@ const CORS_HEADERS = {
   "Content-Type": "application/json",
 };
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_REGEX = /^[\d\s+()-]*$/;
+const MAX_NAME_LEN = 200;
+const MAX_EMAIL_LEN = 254;
+const MAX_PHONE_LEN = 30;
+
+function validateProfile(body: { name?: string; email?: string; phone?: string | null }): string | null {
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  const email = typeof body?.email === "string" ? body.email.trim() : "";
+  const phone = body?.phone == null ? null : String(body.phone).trim();
+
+  if (!name) return "Имя обязательно";
+  if (name.length > MAX_NAME_LEN) return "Имя слишком длинное";
+
+  if (!email) return "Email обязателен";
+  if (email.length > MAX_EMAIL_LEN) return "Email слишком длинный";
+  if (!EMAIL_REGEX.test(email)) return "Неверный формат email";
+
+  if (phone !== null && phone !== "") {
+    if (phone.length > MAX_PHONE_LEN) return "Телефон слишком длинный";
+    if (!PHONE_REGEX.test(phone)) return "Неверный формат телефона";
+  }
+
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
@@ -50,9 +76,17 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const name = body?.name ?? "";
-    const email = body?.email ?? "";
-    const phone = body?.phone ?? null;
+    const validationError = validateProfile(body);
+    if (validationError) {
+      return new Response(JSON.stringify({ error: validationError }), {
+        status: 400,
+        headers: CORS_HEADERS,
+      });
+    }
+
+    const name = (body?.name ?? "").trim();
+    const email = (body?.email ?? "").trim();
+    const phone = body?.phone == null ? null : (String(body.phone).trim() || null);
 
     const { error } = await supabase
       .from("profiles")
