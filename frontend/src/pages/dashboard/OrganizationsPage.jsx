@@ -2,7 +2,7 @@
 // OrganizationsPage — управление организациями /dashboard/organizations
 // ============================================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Plus, Edit2, Trash2, Star, Building2, AlertCircle, Loader2 } from 'lucide-react';
 import DashboardLayout from '../../components/DashboardLayout';
 import Modal from '../../components/Modal';
@@ -77,7 +77,7 @@ function inputClass(hasError) {
 }
 
 export default function OrganizationsPage() {
-  const { user } = useAuth();
+  const { user, accessToken } = useAuth();
 
   const [orgs, setOrgs] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -91,24 +91,26 @@ export default function OrganizationsPage() {
   const [activeTab, setActiveTab] = useState('requisites');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const retryCountRef = useRef(0);
 
   useEffect(() => {
-    if (!user?.id) {
+    if (!user?.id || !accessToken) {
       setLoadingList(false);
       return;
     }
     fetchOrgs();
-  }, [user?.id]);
+  }, [user?.id, accessToken]);
 
-  const LOAD_TIMEOUT_MS = 30000;
-  const LOAD_TIMEOUT_MSG = 'Загрузка заняла более 30 секунд. Проверьте соединение и попробуйте снова.';
+  const LOAD_TIMEOUT_MS = 90000; // 90 сек — cold start Supabase может быть долгим
+  const LOAD_TIMEOUT_MSG = 'Сервер долго запускается (cold start). Нажмите «Повторить» — повторный запрос обычно быстрее.';
 
-  async function fetchOrgs() {
+  async function fetchOrgs(isRetry = false) {
     setLoadingList(true);
-    setListError(null);
+    if (!isRetry) setListError(null);
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error(LOAD_TIMEOUT_MSG)), LOAD_TIMEOUT_MS)
+      setTimeout(() => reject(new Error('timeout')), LOAD_TIMEOUT_MS)
     );
+    let willRetry = false;
     try {
       const queryPromise = (async () => {
         const { data, error } = await fetchFromEdge('organizations-list');
@@ -116,14 +118,28 @@ export default function OrganizationsPage() {
       })();
       const { data, error: err } = await Promise.race([queryPromise, timeoutPromise]);
       if (err) {
-        setListError(err.message);
+        const isTimeout = err?.message === 'timeout';
+        const isNetworkError = /connection reset|failed to fetch|network error/i.test(err?.message || '');
+        if ((isTimeout || isNetworkError) && !isRetry) {
+          willRetry = true;
+          await new Promise((r) => setTimeout(r, 3000));
+          return fetchOrgs(true);
+        }
+        setListError(err?.message === 'timeout' ? LOAD_TIMEOUT_MSG : err?.message || LOAD_TIMEOUT_MSG);
       } else {
         setOrgs(data?.data || []);
       }
     } catch (e) {
+      const isTimeout = e?.message === 'timeout';
+      const isNetworkError = /connection reset|failed to fetch|network error/i.test(e?.message || '');
+      if ((isTimeout || isNetworkError) && !isRetry) {
+        willRetry = true;
+        await new Promise((r) => setTimeout(r, 3000));
+        return fetchOrgs(true);
+      }
       setListError(e?.message || LOAD_TIMEOUT_MSG);
     } finally {
-      setLoadingList(false);
+      if (!willRetry) setLoadingList(false);
     }
   }
 

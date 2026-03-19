@@ -18,7 +18,7 @@ function formatDate(iso) {
 }
 
 export default function DashboardPage() {
-  const { user, profile } = useAuth();
+  const { user, profile, accessToken } = useAuth();
   const navigate = useNavigate();
 
   const [docs, setDocs] = useState([]);
@@ -26,19 +26,23 @@ export default function DashboardPage() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || !accessToken) {
+      setLoading(false);
+      return;
+    }
 
     async function fetchDocs() {
       setLoading(true);
       setError(null);
-      const { data, error: err } = await fetchFromEdge('documents-list');
+      const opts = accessToken ? { token: accessToken } : {};
+      const { data, error: err } = await fetchFromEdge('documents-list', opts);
       if (err) setError(err.message);
       else setDocs((data?.data || []).slice(0, 4));
       setLoading(false);
     }
 
     fetchDocs();
-  }, [user?.id]);
+  }, [user?.id, accessToken]);
 
   const docsUsed = profile?.docsUsed ?? 0;
   const docsLimit = profile?.docsLimit ?? 1;

@@ -14,14 +14,14 @@ export function AuthProvider({ children }) {
   // loading — идёт ли начальная проверка сессии
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [accessToken, setAccessToken] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Загружаем профиль из БД (при ошибке профиль остаётся null).
   // token — опционально, если только что получили из refreshSession (избегаем гонки с getSession).
   const fetchProfile = useCallback(async (token) => {
-    const opts = token ? { token } : {};
-    const { data: res, error } = await fetchFromEdge('profile-get', opts);
+    const { data: res, error } = await fetchFromEdge('profile-get');
     if (error) {
       setProfile(null);
       return;
@@ -72,6 +72,7 @@ export function AuthProvider({ children }) {
             // Не удалось обновить — считаем, что сессии нет, очищаем состояние
             setUser(null);
             setProfile(null);
+            setAccessToken(null);
             setIsLoggedIn(false);
             setLoading(false);
             return;
@@ -79,6 +80,7 @@ export function AuthProvider({ children }) {
 
           const freshUser = refreshed.session.user;
           setUser(freshUser);
+          setAccessToken(refreshed.session.access_token);
           setIsLoggedIn(true);
           await fetchProfile(refreshed.session.access_token);
         } finally {
@@ -90,6 +92,7 @@ export function AuthProvider({ children }) {
           // На любой ошибке — сбрасываем состояние и снимаем загрузку
           setUser(null);
           setProfile(null);
+          setAccessToken(null);
           setIsLoggedIn(false);
           setLoading(false);
         }
@@ -103,11 +106,13 @@ export function AuthProvider({ children }) {
           if (session?.user) {
             // При SIGNED_IN сессия уже свежая, refreshSession может подвисать — не вызываем
             setUser(session.user);
+            setAccessToken(session.access_token);
             setIsLoggedIn(true);
             await fetchProfile(session.access_token);
           } else {
             setUser(null);
             setProfile(null);
+            setAccessToken(null);
             setIsLoggedIn(false);
           }
         } finally {
@@ -147,12 +152,12 @@ export function AuthProvider({ children }) {
 
   // Позволяет обновить profile в контексте после изменений в SettingsPage
   async function refreshProfile() {
-    if (user?.id) await fetchProfile();
+    if (user?.id) await fetchProfile(accessToken);
   }
 
   return (
     <AuthContext.Provider
-      value={{ isLoggedIn, user, profile, loading, login, register, logout, refreshProfile }}
+      value={{ isLoggedIn, user, profile, accessToken, loading, login, register, logout, refreshProfile }}
     >
       {children}
     </AuthContext.Provider>

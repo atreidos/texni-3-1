@@ -87,58 +87,36 @@ export async function callEdgeFunction(functionName, payload) {
 }
 
 /**
- * GET в Edge Function с обработкой 401:
- * - первая попытка с access_token (из опций или getSession())
- * - при 401 → refreshSession() и повтор
- * - при повторном 401/ошибке refresh → signOut + редирект на /auth/login
+ * Вызов read-only Edge Function через supabase.functions.invoke().
+ * Клиент Supabase сам подставляет текущий access_token — избегаем 401 из-за ручной передачи.
  * @param {string} functionName - имя функции, например 'profile-get'
- * @param {{ token?: string }} options - опционально token (например только что из refreshSession)
  */
-export async function fetchFromEdge(functionName, options = {}) {
-  const url = supabaseUrl + '/functions/v1/' + functionName;
-
-  async function attempt(useToken) {
-    const token = useToken ?? (await supabase.auth.getSession()).data?.session?.access_token;
-    if (!token) {
-      return { status: 401, data: null, error: { message: 'Not authenticated' } };
-    }
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Authorization: 'Bearer ' + token,
-      },
-    });
-    const status = res.status;
-    if (!res.ok) {
-      const text = await res.text();
-      let msg = status + ' ' + res.statusText;
-      try {
-        const j = JSON.parse(text);
-        if (j?.error) msg = j.error;
-        if (j?.message) msg = j.message;
-      } catch (_) {}
-      return { status, data: null, error: { message: msg } };
-    }
-    const data = await res.json();
-    return { status, data, error: null };
+export async function fetchFromEdge(functionName) {
+  function toError(obj) {
+    if (!obj) return { message: 'Неизвестная ошибка' };
+    if (typeof obj === 'string') return { message: obj };
+    return { message: obj.message || obj.error || 'Ошибка запроса' };
   }
 
-  let { status, data, error } = await attempt(options.token);
-  if (status !== 401) return { data, error };
+  let { data, error } = await supabase.functions.invoke(functionName, { body: {} });
+  if (!error) return { data, error: null };
 
-  const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
-  if (refreshError || !refreshed?.session) {
-    await supabase.auth.signOut();
-    window.location.assign('/auth/login');
-    return { data: null, error: error || { message: 'Сессия истекла, войдите снова.' } };
-  }
-
-  ({ status, data, error } = await attempt(refreshed.session.access_token));
+  const status = error?.context?.status;
   if (status === 401) {
-    await supabase.auth.signOut();
-    window.location.assign('/auth/login');
-    return { data: null, error: error || { message: 'Сессия истекла, войдите снова.' } };
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError || !refreshed?.session) {
+      await supabase.auth.signOut();
+      window.location.assign('/auth/login');
+      return { data: null, error: toError(error) };
+    }
+    ({ data, error } = await supabase.functions.invoke(functionName, { body: {} }));
+    if (!error) return { data, error: null };
+    if (error?.context?.status === 401) {
+      await supabase.auth.signOut();
+      window.location.assign('/auth/login');
+      return { data: null, error: toError(error) };
+    }
   }
 
-  return { data, error };
+  return { data: null, error: toError(error) };
 }

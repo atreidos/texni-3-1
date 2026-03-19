@@ -2,7 +2,7 @@
 // DocumentsPage — список документов /dashboard/documents
 // ============================================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, FileText, Download, Trash2, ExternalLink, Filter, AlertCircle, Loader2 } from 'lucide-react';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -25,7 +25,7 @@ function formatDate(iso) {
 }
 
 export default function DocumentsPage() {
-  const { user } = useAuth();
+  const { user, accessToken } = useAuth();
   const navigate = useNavigate();
 
   const [docs, setDocs] = useState([]);
@@ -36,35 +36,52 @@ export default function DocumentsPage() {
   const [sortOrder, setSortOrder] = useState('desc');
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || !accessToken) {
+      setLoading(false);
+      return;
+    }
     fetchDocs();
-  }, [user?.id]);
+  }, [user?.id, accessToken]);
 
-  const LOAD_TIMEOUT_MS = 30000;
-  const LOAD_TIMEOUT_MSG = 'Загрузка заняла более 30 секунд. Проверьте соединение и попробуйте снова.';
+  const LOAD_TIMEOUT_MS = 90000; // 90 сек — cold start Supabase
+  const LOAD_TIMEOUT_MSG = 'Сервер долго запускается (cold start). Нажмите «Повторить» — повторный запрос обычно быстрее.';
 
-  async function fetchDocs() {
+  async function fetchDocs(isRetry = false) {
     setLoading(true);
-    setError(null);
+    if (!isRetry) setError(null);
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error(LOAD_TIMEOUT_MSG)), LOAD_TIMEOUT_MS)
+      setTimeout(() => reject(new Error('timeout')), LOAD_TIMEOUT_MS)
     );
+    let willRetry = false;
     try {
       const queryPromise = (async () => {
         const { data, error } = await fetchFromEdge('documents-list');
         return { data, error };
       })();
-
       const { data, error: err } = await Promise.race([queryPromise, timeoutPromise]);
       if (err) {
-        setError(err.message);
+        const isTimeout = err?.message === 'timeout';
+        const isNetworkError = /connection reset|failed to fetch|network error/i.test(err?.message || '');
+        if ((isTimeout || isNetworkError) && !isRetry) {
+          willRetry = true;
+          await new Promise((r) => setTimeout(r, 3000));
+          return fetchDocs(true);
+        }
+        setError(err?.message === 'timeout' ? LOAD_TIMEOUT_MSG : err?.message || LOAD_TIMEOUT_MSG);
       } else {
         setDocs(data?.data || []);
       }
     } catch (e) {
+      const isTimeout = e?.message === 'timeout';
+      const isNetworkError = /connection reset|failed to fetch|network error/i.test(e?.message || '');
+      if ((isTimeout || isNetworkError) && !isRetry) {
+        willRetry = true;
+        await new Promise((r) => setTimeout(r, 3000));
+        return fetchDocs(true);
+      }
       setError(e?.message || LOAD_TIMEOUT_MSG);
     } finally {
-      setLoading(false);
+      if (!willRetry) setLoading(false);
     }
   }
 

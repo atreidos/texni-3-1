@@ -104,6 +104,7 @@ Edge Functions деплоятся через Supabase CLI. Для `create-paymen
 |---|---|---|
 | `user` | Supabase User | объект сессии (`id`, `email`, …) |
 | `profile` | Row из `profiles` | `name`, `phone`, `plan`, `docs_used`, … |
+| `accessToken` | string \| null | JWT пользователя для Edge Functions; обновляется при login/refreshSession |
 | `isLoggedIn` | boolean | `true` при активной сессии |
 | `loading` | boolean | `true` пока идёт начальная проверка сессии |
 | `login(email, pw)` | async | `signInWithPassword`, бросает ошибку при неудаче |
@@ -115,8 +116,10 @@ Edge Functions деплоятся через Supabase CLI. Для `create-paymen
 При старте приложения `getSession()` + `onAuthStateChange` восстанавливают сессию из localStorage — перезагрузка страницы не разлогинивает пользователя.
 
 **PrivateRoute:**  
-Пока `loading === true` — рендерит `null` (не редиректит).  
-Когда `loading === false && isLoggedIn === false` — редирект на `/auth/login`.
+Пока `loading === true` — экран загрузки.  
+Если `isLoggedIn && !accessToken` — экран загрузки (ждём токен, не рендерим страницы до готовности — избегаем 401).  
+Когда `loading === false && isLoggedIn === false` — редирект на `/auth/login`.  
+На страницах ЛК (DashboardPage, DocumentsPage, OrganizationsPage, BillingPage) fetch вызывается только при `user?.id && accessToken` — запросы без токена не отправляются.
 
 ---
 

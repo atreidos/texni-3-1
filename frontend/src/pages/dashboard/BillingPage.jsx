@@ -41,7 +41,7 @@ function PaymentStatusBadge({ status }) {
 }
 
 export default function BillingPage() {
-  const { user, profile } = useAuth();
+  const { user, profile, accessToken } = useAuth();
   const [showCardForm, setShowCardForm] = useState(false);
 
   const [payments, setPayments] = useState([]);
@@ -49,19 +49,23 @@ export default function BillingPage() {
   const [paymentsError, setPaymentsError] = useState(null);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || !accessToken) {
+      setLoadingPayments(false);
+      return;
+    }
 
     async function fetchPayments() {
       setLoadingPayments(true);
       setPaymentsError(null);
-      const { data, error: err } = await fetchFromEdge('payments-list');
+      const opts = accessToken ? { token: accessToken } : {};
+      const { data, error: err } = await fetchFromEdge('payments-list', opts);
       if (err) setPaymentsError(err.message);
       else setPayments(data?.data || []);
       setLoadingPayments(false);
     }
 
     fetchPayments();
-  }, [user?.id]);
+  }, [user?.id, accessToken]);
 
   const docsUsed = profile?.docsUsed ?? 0;
   const docsLimit = profile?.docsLimit ?? 1;

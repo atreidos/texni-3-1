@@ -60,9 +60,11 @@ function AuthLoadingScreen() {
 
 // Компонент-обёртка для защищённых маршрутов
 // Пока идёт проверка сессии — показываем экран загрузки, не редиректим
+// Ждём accessToken, чтобы не рендерить страницы до готовности (избегаем 401)
 function PrivateRoute({ children }) {
-  const { isLoggedIn, loading } = useAuth();
+  const { isLoggedIn, loading, accessToken } = useAuth();
   if (loading) return <AuthLoadingScreen />;
+  if (isLoggedIn && !accessToken) return <AuthLoadingScreen />;
   return isLoggedIn ? children : <Navigate to="/auth/login" replace />;
 }
 
