@@ -68,8 +68,8 @@ export default function SettingsPage() {
       setPwError('Пароли не совпадают');
       return;
     }
-    if (passwords.next.length < 6) {
-      setPwError('Минимум 6 символов');
+    if (passwords.next.length < 8) {
+      setPwError('Минимум 8 символов');
       return;
     }
 

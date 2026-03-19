@@ -22,12 +22,22 @@ export default function LoginPage() {
     if (isLoggedIn) navigate('/dashboard', { replace: true });
   }, [isLoggedIn, navigate]);
 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
 
-    if (!email || !password) {
-      setError('Заполните все поля');
+    if (!email?.trim()) {
+      setError('Введите email');
+      return;
+    }
+    if (!emailRegex.test(email.trim())) {
+      setError('Неверный формат email');
+      return;
+    }
+    if (!password) {
+      setError('Введите пароль');
       return;
     }
 

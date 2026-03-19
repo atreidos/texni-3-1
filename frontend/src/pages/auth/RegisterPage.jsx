@@ -18,11 +18,14 @@ export default function RegisterPage() {
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
   function validate() {
     const e = {};
     if (!form.name.trim()) e.name = 'Введите имя';
     if (!form.email.trim()) e.email = 'Введите email';
-    if (form.password.length < 6) e.password = 'Пароль минимум 6 символов';
+    else if (!emailRegex.test(form.email.trim())) e.email = 'Неверный формат email';
+    if (form.password.length < 8) e.password = 'Пароль минимум 8 символов';
     if (form.password !== form.confirm) e.confirm = 'Пароли не совпадают';
     if (!agreed) e.agreed = 'Необходимо принять оферту';
     return e;
@@ -103,7 +106,7 @@ export default function RegisterPage() {
                   type={showPw ? 'text' : 'password'}
                   value={form.password}
                   onChange={handleChange('password')}
-                  placeholder="Минимум 6 символов"
+                  placeholder="Минимум 8 символов"
                   className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${errors.password ? 'border-red-300' : 'border-slate-200'}`}
                 />
                 <button

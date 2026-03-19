@@ -5,11 +5,12 @@
 
 /**
  * Показывать ли ошибки на экране (Error Boundary + необработанные промисы).
- * Включить: в .env добавить VITE_SHOW_ERRORS=true
- * Выключить: удалить переменную или поставить VITE_SHOW_ERRORS=false
+ * В production всегда false — стек-трейсы не должны показываться пользователям.
+ * Включить только в dev: в .env добавить VITE_SHOW_ERRORS=true
  */
 export const showErrorsOnScreen =
-  import.meta.env.VITE_SHOW_ERRORS === 'true' || import.meta.env.VITE_SHOW_ERRORS === '1';
+  import.meta.env.DEV &&
+  (import.meta.env.VITE_SHOW_ERRORS === 'true' || import.meta.env.VITE_SHOW_ERRORS === '1');
 
 /**
  * Разрешить кнопку «Заполнить фейковыми данными» в форме организации.

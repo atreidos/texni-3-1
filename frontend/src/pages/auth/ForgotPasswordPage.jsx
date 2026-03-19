@@ -4,21 +4,45 @@
 
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Mail, ArrowLeft, CheckCircle } from 'lucide-react';
+import { FileText, Mail, ArrowLeft, CheckCircle, Loader2 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
+    setError('');
+
     if (!email.trim()) {
       setError('Введите email');
       return;
     }
-    // Имитация отправки письма
-    setSent(true);
+    if (!EMAIL_REGEX.test(email.trim())) {
+      setError('Неверный формат email');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      });
+      if (err) {
+        setError(err.message || 'Не удалось отправить письмо');
+        return;
+      }
+      setSent(true);
+    } catch (err) {
+      setError(err?.message || 'Произошла ошибка');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -62,9 +86,11 @@ export default function ForgotPasswordPage() {
                 </div>
                 <button
                   type="submit"
-                  className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                  disabled={loading}
+                  className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  Отправить ссылку
+                  {loading && <Loader2 size={16} className="animate-spin" />}
+                  {loading ? 'Отправка...' : 'Отправить ссылку'}
                 </button>
               </form>
             </>
