@@ -10,6 +10,7 @@ import { useAuth } from '../../context/AuthContext';
 import { callEdgeFunction, fetchFromEdge } from '../../lib/supabase';
 import { allowFakeOrgData } from '../../config';
 import { fakeOrgForm } from '../../data/mockData';
+import ErrorBanner from '../../components/ErrorBanner';
 
 // Начальное состояние формы новой организации
 const emptyOrg = {
@@ -91,6 +92,7 @@ export default function OrganizationsPage() {
   const [activeTab, setActiveTab] = useState('requisites');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [actionError, setActionError] = useState(null);
   const retryCountRef = useRef(0);
 
   useEffect(() => {
@@ -230,20 +232,22 @@ export default function OrganizationsPage() {
   }
 
   async function handleDelete(id) {
+    setActionError(null);
     const { error: err } = await callEdgeFunction('organizations-delete', { id });
 
     if (err) {
-      alert(`Ошибка удаления: ${err.message}`);
+      setActionError(err.message);
     } else {
       setOrgs(prev => prev.filter(o => o.id !== id));
     }
   }
 
   async function handleSetMain(id) {
+    setActionError(null);
     const { error: err } = await callEdgeFunction('organizations-set-main', { id });
 
     if (err) {
-      alert(`Ошибка: ${err.message}`);
+      setActionError(err.message);
     } else {
       setOrgs(prev => prev.map(o => ({ ...o, isMain: o.id === id })));
     }
@@ -253,6 +257,10 @@ export default function OrganizationsPage() {
 
   return (
     <DashboardLayout title="Организации">
+
+      {actionError && (
+        <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} className="mb-4" />
+      )}
 
       <div className="flex justify-between items-center mb-5">
         <p className="text-sm text-slate-500">

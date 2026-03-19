@@ -34,8 +34,7 @@ export default function DashboardPage() {
     async function fetchDocs() {
       setLoading(true);
       setError(null);
-      const opts = accessToken ? { token: accessToken } : {};
-      const { data, error: err } = await fetchFromEdge('documents-list', opts);
+      const { data, error: err } = await fetchFromEdge('documents-list');
       if (err) setError(err.message);
       else setDocs((data?.data || []).slice(0, 4));
       setLoading(false);

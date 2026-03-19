@@ -60,6 +60,9 @@ export async function callEdgeFunction(functionName, payload) {
         if (j?.error) msg = j.error;
         if (j?.message) msg = j.message;
       } catch (_) {}
+      if (status === 403 && !msg.includes('Доступ запрещён')) {
+        msg = 'Доступ запрещён';
+      }
       return { status, data: null, error: { message: msg } };
     }
     const data = await res.json();
@@ -67,7 +70,7 @@ export async function callEdgeFunction(functionName, payload) {
   }
 
   let { status, data, error } = await attempt();
-  if (status !== 401) return { data, error };
+  if (status !== 401) return { data, error, status };
 
   const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
   if (refreshError || !refreshed?.session) {
@@ -80,10 +83,10 @@ export async function callEdgeFunction(functionName, payload) {
   if (status === 401) {
     await supabase.auth.signOut();
     window.location.assign('/auth/login');
-    return { data: null, error: error || { message: 'Сессия истекла, войдите снова.' } };
+    return { data: null, error: error || { message: 'Сессия истекла, войдите снова.' }, status: 401 };
   }
 
-  return { data, error };
+  return { data, error, status };
 }
 
 /**

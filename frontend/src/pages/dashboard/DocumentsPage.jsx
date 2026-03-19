@@ -9,6 +9,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { callEdgeFunction, fetchFromEdge } from '../../lib/supabase';
+import ErrorBanner from '../../components/ErrorBanner';
 
 // Форматируем размер в байтах → «48 КБ»
 function formatSize(bytes) {
@@ -34,6 +35,7 @@ export default function DocumentsPage() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [sortOrder, setSortOrder] = useState('desc');
+  const [actionError, setActionError] = useState(null);
 
   useEffect(() => {
     if (!user?.id || !accessToken) {
@@ -86,10 +88,11 @@ export default function DocumentsPage() {
   }
 
   async function handleDelete(id) {
+    setActionError(null);
     const { error: err } = await callEdgeFunction('documents-delete', { id });
 
     if (err) {
-      alert(`Ошибка удаления: ${err.message}`);
+      setActionError(err.message);
     } else {
       setDocs(prev => prev.filter(d => d.id !== id));
     }
@@ -111,6 +114,10 @@ export default function DocumentsPage() {
 
   return (
     <DashboardLayout title="Мои документы">
+
+      {actionError && (
+        <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} className="mb-4" />
+      )}
 
       {/* Фильтры, поиск и сортировка */}
       <div className="flex flex-col sm:flex-row gap-3 mb-5">
