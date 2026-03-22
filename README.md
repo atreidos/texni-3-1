@@ -62,6 +62,7 @@ VITE_ALLOW_FAKE_ORG_DATA=true
 
 - `backend/supabase/migrations/001_init_schema.sql` — схема БД, триггеры и RLS-политики  
 - `backend/supabase/functions/create-payment/index.ts` — Edge Function для записи в `payments` через `service_role`
+- `backend/supabase/functions/dadata-find-party/index.ts` — прокси к DaData API для автозаполнения реквизитов по ИНН (требует `DADATA_API_KEY` в Supabase Secrets)
 - остальные Edge Functions (например `organizations-*`, `documents-*`, `profile-*`, `payments-list`) — единственная точка доступа к данным из фронтенда (`/functions/v1/*`)
 
 Есть два варианта развёртывания схемы:
@@ -119,6 +120,8 @@ backend/                      # Backend (Supabase: БД + Auth + RLS + Edge Func
 │   └── functions/
 │       ├── create-payment/
 │       │   └── index.ts          # Edge Function с service_role для записи в payments
+│       ├── dadata-find-party/
+│       │   └── index.ts          # прокси к DaData API (поиск по ИНН)
 │       ├── organizations-*/
 │       ├── documents-*/
 │       ├── profile-*/
@@ -144,6 +147,9 @@ Frontend не обращается напрямую к таблицам Supabase
 - `POST /functions/v1/organizations-set-main` — атомарно установить основную организацию (`body`: `{ id }`)
 - `POST /functions/v1/documents-delete` — удалить документ (`body`: `{ id }`)
 - `POST /functions/v1/profile-update` — обновить профиль (`body`: `{ name, email, phone }`)
+- `POST /functions/v1/dadata-find-party` — поиск организации по ИНН через DaData (`body`: `{ inn }`). Возвращает реквизиты для автозаполнения формы. Требует JWT и `DADATA_API_KEY` в Supabase Secrets.
+
+**DaData:** для работы кнопки «Заполнить автоматически» на странице организаций добавьте секрет: Supabase Dashboard → Project Settings → Edge Functions → Secrets → `DADATA_API_KEY`. Ключ получают на [dadata.ru](https://dadata.ru) (бесплатно до 10 000 запросов/день).
 
 ---
 ## Безопасность

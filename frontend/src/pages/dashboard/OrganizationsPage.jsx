@@ -3,7 +3,7 @@
 // ============================================================
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Star, Building2, AlertCircle, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Star, Building2, AlertCircle, Loader2, Sparkles } from 'lucide-react';
 import DashboardLayout from '../../components/DashboardLayout';
 import Modal from '../../components/Modal';
 import { useAuth } from '../../context/AuthContext';
@@ -93,6 +93,9 @@ export default function OrganizationsPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [actionError, setActionError] = useState(null);
+  const [dadataLoading, setDadataLoading] = useState(false);
+  const [dadataError, setDadataError] = useState('');
+  const [dadataWarnings, setDadataWarnings] = useState([]);
   const retryCountRef = useRef(0);
 
   useEffect(() => {
@@ -151,6 +154,8 @@ export default function OrganizationsPage() {
     setErrors({});
     setSubmitted(false);
     setSaveError('');
+    setDadataError('');
+    setDadataWarnings([]);
     setActiveTab('requisites');
     setModalOpen(true);
   }
@@ -161,6 +166,8 @@ export default function OrganizationsPage() {
     setErrors({});
     setSubmitted(false);
     setSaveError('');
+    setDadataError('');
+    setDadataWarnings([]);
     setActiveTab('requisites');
     setModalOpen(true);
   }
@@ -175,6 +182,92 @@ export default function OrganizationsPage() {
     const updated = { ...form, bank: { ...form.bank, [field]: value } };
     setForm(updated);
     if (submitted) setErrors(validate(updated));
+  }
+
+  const innDigitsOnly = (form.inn || '').replace(/\D/g, '');
+  const innValidForDadata = innDigitsOnly.length === 10 || innDigitsOnly.length === 12;
+
+  async function handleFillFromDaData() {
+    console.log('[DaData] handleFillFromDaData called', {
+      hasUser: !!user?.id,
+      hasAccessToken: !!accessToken,
+      dadataLoading,
+      innValidForDadata,
+      innDigitsOnly,
+    });
+    if (!user?.id || !accessToken || dadataLoading || !innValidForDadata) {
+      console.log('[DaData] early return');
+      return;
+    }
+    setDadataLoading(true);
+    setDadataError('');
+    setDadataWarnings([]);
+
+    const DADATA_TIMEOUT_MS = 15000;
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('timeout')), DADATA_TIMEOUT_MS)
+    );
+
+    try {
+      let res, err, status;
+      try {
+        console.log('[DaData] invoking...', { inn: innDigitsOnly });
+        const result = await Promise.race([
+          callEdgeFunction('dadata-find-party', { inn: innDigitsOnly }, accessToken),
+          timeoutPromise,
+        ]);
+        console.log('[DaData] result', result);
+        res = result?.data;
+        err = result?.error;
+        status = result?.status ?? (result?.error ? 502 : 200);
+      } catch (raceErr) {
+        if (raceErr?.message === 'timeout') {
+          setDadataError('Запрос занял слишком долго. Проверьте соединение.');
+        } else {
+          setDadataError('Не удалось получить данные. Проверьте соединение');
+        }
+        return;
+      } finally {
+        setDadataLoading(false);
+      }
+
+      if (err) {
+        if (status === 400) {
+          setDadataError('Проверьте правильность ИНН');
+        } else if (status === 401 || status === 403) {
+          setDadataError('Ошибка доступа к сервису. Обратитесь в поддержку');
+        } else {
+          setDadataError('Не удалось получить данные. Проверьте соединение');
+        }
+        return;
+      }
+
+      const data = res?.data;
+      if (data === null || data === undefined) {
+        setDadataError('Организация с таким ИНН не найдена');
+        return;
+      }
+
+      const warnings = data.warnings || [];
+      setDadataWarnings(warnings);
+
+      setForm(prev => ({
+        ...prev,
+        name: data.name ?? prev.name,
+        inn: data.inn ?? prev.inn,
+        kpp: data.kpp ?? prev.kpp,
+        ogrn: data.ogrn ?? prev.ogrn,
+        address: data.address ?? prev.address,
+        phone: data.phone ?? prev.phone,
+        email: data.email ?? prev.email,
+        bank: prev.bank,
+      }));
+      setErrors({});
+    } catch (e) {
+      setDadataLoading(false);
+      setDadataError('Не удалось получить данные. Проверьте соединение');
+      console.error('[DaData]', e);
+    }
   }
 
   const SAVE_TIMEOUT_MS = 15000;
@@ -418,15 +511,31 @@ export default function OrganizationsPage() {
             </Field>
 
             <div className="grid grid-cols-2 gap-4">
-              <Field label="ИНН" error={errors.inn}>
-                <input
-                  type="text"
-                  value={form.inn}
-                  onChange={e => setField('inn', e.target.value)}
-                  placeholder="7701234567"
-                  maxLength={12}
-                  className={inputClass(errors.inn)}
-                />
+              <Field label="ИНН" error={errors.inn || dadataError}>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={form.inn}
+                    onChange={e => { setField('inn', e.target.value); setDadataError(''); }}
+                    placeholder="7701234567"
+                    maxLength={12}
+                    className={inputClass(errors.inn || dadataError)}
+                  />
+                  <button
+                    type="button"
+                    disabled={!innValidForDadata || dadataLoading}
+                    onClick={handleFillFromDaData}
+                    className="shrink-0 px-3 py-2.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-50 flex items-center gap-1.5"
+                    title="Заполнить реквизиты по ИНН из ЕГРЮЛ"
+                  >
+                    {dadataLoading ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={14} />
+                    )}
+                    {dadataLoading ? 'Загрузка...' : 'Заполнить автоматически'}
+                  </button>
+                </div>
               </Field>
 
               <Field label="КПП" error={errors.kpp}>
@@ -461,6 +570,17 @@ export default function OrganizationsPage() {
                 className={inputClass(errors.address)}
               />
             </Field>
+
+            {dadataWarnings.length > 0 && (
+              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <ul className="list-disc list-inside space-y-0.5">
+                  {dadataWarnings.map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
 

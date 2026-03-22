@@ -27,19 +27,21 @@ if (!supabaseUrl.includes('supabase.co') || supabaseUrl.includes('localhost')) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
- * POST в Edge Function с обработкой 401:
- * - первая попытка с текущим access_token (или anon key)
+ * POST в Edge Function с явным токеном (опционально).
+ * Без token использует getSession(). С token — передаёт его в Authorization.
  * - при 401 → refreshSession() и повтор
  * - при повторном 401/ошибке refresh → signOut + редирект на /auth/login
+ * @param {string} functionName
+ * @param {object} payload
+ * @param {string} [explicitToken] - access_token из AuthContext (если есть)
  */
-export async function callEdgeFunction(functionName, payload) {
+export async function callEdgeFunction(functionName, payload, explicitToken = null) {
   const url = supabaseUrl + '/functions/v1/' + functionName;
 
-  async function attempt() {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const token = session?.access_token;
+  async function attempt(useExplicitToken = true) {
+    const token = (useExplicitToken && explicitToken)
+      ? explicitToken
+      : (await supabase.auth.getSession()).data?.session?.access_token;
     if (!token) {
       return { status: 401, data: null, error: { message: 'Not authenticated' } };
     }
@@ -48,6 +50,7 @@ export async function callEdgeFunction(functionName, payload) {
       headers: {
         'Content-Type': 'application/json',
         Authorization: 'Bearer ' + token,
+        apikey: supabaseAnonKey,
       },
       body: JSON.stringify(payload),
     });
@@ -79,7 +82,7 @@ export async function callEdgeFunction(functionName, payload) {
     return { data: null, error: error || { message: 'Сессия истекла, войдите снова.' } };
   }
 
-  ({ status, data, error } = await attempt());
+  ({ status, data, error } = await attempt(false)); // retry with fresh token from session
   if (status === 401) {
     await supabase.auth.signOut();
     window.location.assign('/auth/login');
@@ -87,6 +90,43 @@ export async function callEdgeFunction(functionName, payload) {
   }
 
   return { data, error, status };
+}
+
+/**
+ * Вызов Edge Function через supabase.functions.invoke() с телом запроса.
+ * Клиент Supabase сам подставляет access_token — избегаем 401 из-за ручной передачи.
+ * @param {string} functionName - имя функции, например 'dadata-find-party'
+ * @param {object} body - тело запроса (POST)
+ * @returns {{ data: unknown, error: { message: string } | null, status?: number }}
+ */
+export async function invokeEdgeFunction(functionName, body = {}) {
+  function toError(obj) {
+    if (!obj) return { message: 'Неизвестная ошибка' };
+    if (typeof obj === 'string') return { message: obj };
+    return { message: obj.message || obj.error || 'Ошибка запроса' };
+  }
+
+  let { data, error } = await supabase.functions.invoke(functionName, { body });
+  if (!error) return { data, error: null, status: 200 };
+
+  const status = error?.context?.status;
+  if (status === 401) {
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError || !refreshed?.session) {
+      await supabase.auth.signOut();
+      window.location.assign('/auth/login');
+      return { data: null, error: toError(error) };
+    }
+    ({ data, error } = await supabase.functions.invoke(functionName, { body }));
+    if (!error) return { data, error: null, status: 200 };
+    if (error?.context?.status === 401) {
+      await supabase.auth.signOut();
+      window.location.assign('/auth/login');
+      return { data: null, error: toError(error) };
+    }
+  }
+
+  return { data: null, error: toError(error), status };
 }
 
 /**

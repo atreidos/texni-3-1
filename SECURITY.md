@@ -32,7 +32,8 @@ Supabase Auth не ограничивает количество попыток 
 
 - **VITE_SHOW_ERRORS** — в production всегда `false` или не задана. Иначе пользователи видят стек-трейсы.
 - **.env** — не коммитить, в `.gitignore` уже есть
-- Секреты Edge Functions (SUPABASE_SERVICE_ROLE_KEY и др.) — только в настройках Supabase, не в коде
+- Секреты Edge Functions (SUPABASE_SERVICE_ROLE_KEY, DADATA_API_KEY и др.) — только в настройках Supabase, не в коде
+- **DADATA_API_KEY** — API-ключ DaData хранится в Supabase Edge Functions Secrets. Никогда не передаётся на фронтенд. Все запросы к DaData идут через Edge Function `dadata-find-party`
 
 ---
 
