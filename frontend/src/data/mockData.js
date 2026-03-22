@@ -65,23 +65,6 @@ export const mockDocuments = [
   },
 ];
 
-// Фейковые данные для заполнения формы организации (формат формы: name, inn, kpp, bank и т.д.)
-export const fakeOrgForm = {
-  name: 'ООО «Альфа Медиа»',
-  inn: '7701234567',
-  kpp: '770101001',
-  ogrn: '1027700132195',
-  address: 'г. Москва, ул. Тверская, д. 10, офис 305',
-  phone: '+7 (495) 123-45-67',
-  email: 'info@alphamedia.ru',
-  bank: {
-    bik: '044525225',
-    bankName: 'ПАО Сбербанк',
-    checkingAccount: '40702810938000012345',
-    correspondentAccount: '30101810400000000225',
-  },
-};
-
 // Организации пользователя
 export const mockOrganizations = [
   {

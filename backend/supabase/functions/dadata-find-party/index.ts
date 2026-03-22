@@ -1,5 +1,6 @@
 // ============================================================
-// dadata-find-party — прокси к DaData API для поиска организации по ИНН
+// dadata-find-party — прокси к DaData API для поиска организации
+// Поддерживает: поиск по ИНН (findById) и по названию (suggest/party).
 // Вызывается только авторизованными пользователями (JWT).
 // API-ключ DaData хранится в Supabase Secrets (DADATA_API_KEY).
 // ============================================================
@@ -18,7 +19,8 @@ const CORS_HEADERS = {
 };
 
 const INN_REGEX = /^\d{10}$|^\d{12}$/;
-const DADATA_URL = "https://suggestions.dadata.ru/suggestions/api/4_1/rs/findById/party";
+const DADATA_FIND_BY_ID_URL = "https://suggestions.dadata.ru/suggestions/api/4_1/rs/findById/party";
+const DADATA_SUGGEST_URL = "https://suggestions.dadata.ru/suggestions/api/4_1/rs/suggest/party";
 const DADATA_TIMEOUT_MS = 7000;
 
 /**
@@ -50,6 +52,7 @@ function validateInnChecksum(inn: string): boolean {
   return false;
 }
 
+// address в suggest может быть { value?: string } или вложенный объект
 interface DaDataParty {
   data?: {
     type?: "LEGAL" | "INDIVIDUAL";
@@ -57,7 +60,7 @@ interface DaDataParty {
     inn?: string;
     kpp?: string;
     ogrn?: string;
-    address?: { value?: string };
+    address?: { value?: string } | string;
     phones?: Array<{ value?: string }>;
     emails?: Array<{ value?: string }>;
     state?: { status?: string };
@@ -74,12 +77,14 @@ function mapDaDataToForm(d: DaDataParty): Record<string, unknown> {
     ? (data.name?.full ?? "")
     : (data.name?.short_with_opf ?? "");
 
+  const addr = data.address;
+  const addressStr = typeof addr === "string" ? addr : addr?.value ?? "";
   return {
     name,
     inn: data.inn ?? "",
     kpp: isIndividual ? "" : (data.kpp ?? ""),
     ogrn: data.ogrn ?? "",
-    address: data.address?.value ?? "",
+    address: addressStr,
     phone: data.phones?.[0]?.value ?? "",
     email: data.emails?.[0]?.value ?? "",
     bank: { bik: "", bankName: "", checkingAccount: "", correspondentAccount: "" },
@@ -159,7 +164,7 @@ serve(async (req) => {
     });
   }
 
-  let body: { inn?: string };
+  let body: { inn?: string; query?: string };
   try {
     body = await req.json();
   } catch {
@@ -171,7 +176,8 @@ serve(async (req) => {
   }
 
   const inn = String(body?.inn ?? "").trim();
-  log("Request", { inn });
+  const query = String(body?.query ?? "").trim();
+  log("Request", { inn, query });
 
   const apiKey = Deno.env.get("DADATA_API_KEY");
   if (!apiKey) {
@@ -182,36 +188,43 @@ serve(async (req) => {
     });
   }
 
-  if (!INN_REGEX.test(inn)) {
-    log("Invalid INN format", { inn });
-    return new Response(JSON.stringify({ error: "Введите корректный ИНН (10 или 12 цифр)" }), {
+  const useInn = inn && INN_REGEX.test(inn);
+  const useQuery = query.length >= 2 && !INN_REGEX.test(query.replace(/\s/g, ""));
+
+  if (!useInn && !useQuery) {
+    log("Invalid request: need inn (10/12 digits) or query (>=2 chars)");
+    return new Response(JSON.stringify({ error: "Укажите ИНН (10 или 12 цифр) или название (минимум 2 символа)" }), {
       status: 400,
       headers: CORS_HEADERS,
     });
   }
 
-  if (!validateInnChecksum(inn)) {
-    log("INN checksum failed", { inn });
-    return new Response(JSON.stringify({ error: "ИНН содержит ошибку (алгоритм ФНС)" }), {
-      status: 400,
-      headers: CORS_HEADERS,
-    });
+  if (useInn) {
+    if (!validateInnChecksum(inn)) {
+      log("INN checksum failed", { inn });
+      return new Response(JSON.stringify({ error: "ИНН содержит ошибку (алгоритм ФНС)" }), {
+        status: 400,
+        headers: CORS_HEADERS,
+      });
+    }
   }
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), DADATA_TIMEOUT_MS);
 
+  const dadataUrl = useInn ? DADATA_FIND_BY_ID_URL : DADATA_SUGGEST_URL;
+  const dadataBody = useInn ? { query: inn } : { query, count: 1 };
+
   try {
-    const dadataBody = { query: inn };
-    log("DaData request", { url: DADATA_URL, body: dadataBody });
-    const dadataRes = await fetch(DADATA_URL, {
+    log("DaData request", { url: dadataUrl, body: dadataBody });
+    const dadataRes = await fetch(dadataUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
         Authorization: `Token ${apiKey}`,
       },
-      body: JSON.stringify(dadataBody),
+      body: JSON.stringify(dadataBody as Record<string, unknown>),
       signal: controller.signal,
     });
     clearTimeout(timeoutId);

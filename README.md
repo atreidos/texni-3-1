@@ -38,14 +38,6 @@ VITE_SHOW_ERRORS=true
 
 При `VITE_SHOW_ERRORS=true` ошибки рендера и необработанные промисы показываются в UI. В продакшене оставьте переменную выключенной или не задавайте.
 
-Опционально — кнопка «Заполнить фейковыми данными» в форме организации (удобно для разработки):
-
-```env
-VITE_ALLOW_FAKE_ORG_DATA=true
-```
-
-Если переменная не задана или `false`, кнопка не отображается.
-
 Где взять значения:
 - Откройте [supabase.com](https://supabase.com) → ваш проект → **Settings → API**
 - `VITE_SUPABASE_URL` — скопируйте **Project URL** как есть (должен начинаться с `https://` и содержать `supabase.co`), не подставляйте localhost
@@ -147,9 +139,9 @@ Frontend не обращается напрямую к таблицам Supabase
 - `POST /functions/v1/organizations-set-main` — атомарно установить основную организацию (`body`: `{ id }`)
 - `POST /functions/v1/documents-delete` — удалить документ (`body`: `{ id }`)
 - `POST /functions/v1/profile-update` — обновить профиль (`body`: `{ name, email, phone }`)
-- `POST /functions/v1/dadata-find-party` — поиск организации по ИНН через DaData (`body`: `{ inn }`). Возвращает реквизиты для автозаполнения формы. Требует JWT и `DADATA_API_KEY` в Supabase Secrets.
+- `POST /functions/v1/dadata-find-party` — поиск организации через DaData: по ИНН (`body`: `{ inn }`) или по названию (`body`: `{ query }`). Возвращает реквизиты для автозаполнения формы. Требует JWT и `DADATA_API_KEY` в Supabase Secrets.
 
-**DaData:** для работы кнопки «Заполнить автоматически» на странице организаций добавьте секрет: Supabase Dashboard → Project Settings → Edge Functions → Secrets → `DADATA_API_KEY`. Ключ получают на [dadata.ru](https://dadata.ru) (бесплатно до 10 000 запросов/день).
+**DaData:** для работы поиска организации (по названию или ИНН) добавьте секрет. При 401: деплойте с `--no-verify-jwt` — `supabase functions deploy dadata-find-party --no-verify-jwt`. Supabase Dashboard → Project Settings → Edge Functions → Secrets → `DADATA_API_KEY`. Ключ получают на [dadata.ru](https://dadata.ru) (бесплатно до 10 000 запросов/день).
 
 ---
 ## Безопасность

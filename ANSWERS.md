@@ -12,14 +12,16 @@
 - **Политика паролей** — минимум 8 символов (было 6) на RegisterPage, SettingsPage (смена пароля), ResetPasswordPage.
 - **Валидация email** — формат `[^\s@]+@[^\s@]+\.[^\s@]+` на LoginPage, RegisterPage, ForgotPasswordPage.
 - **VITE_SHOW_ERRORS** — в production всегда `false`; показ ошибок разрешён только при `import.meta.env.DEV` и явном `VITE_SHOW_ERRORS=true`.
-- **.env.example** — создан в `frontend/.env.example` с заглушками VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_SHOW_ERRORS, VITE_ALLOW_FAKE_ORG_DATA. .gitignore уже содержит `.env`.
+- **.env.example** — создан в `frontend/.env.example` с заглушками VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_SHOW_ERRORS. .gitignore уже содержит `.env`.
 - **profile-update** Edge Function — серверная валидация: name (обязательно, ≤200), email (обязательно, формат, ≤254), phone (формат, ≤30, опционально).
 - **organizations-create, organizations-update** Edge Functions — серверная валидация реквизитов: name, INN (10/12 цифр), OGRN (13/15 цифр), KPP (9 цифр, опц.), BIK (9 цифр, опц.), расчётный и корр. счёт (20 цифр, опц.) — согласовано с CHECK в БД.
 - **403 для чужих данных**: documents-delete, organizations-delete, organizations-update, organizations-set-main перед операцией проверяют владельца через SELECT (RLS фильтрует чужие записи); при отсутствии доступа возвращают 403 и `{ error: "Доступ запрещён" }`.
 
 ## Интеграция DaData
 
-- **dadata-find-party** — Edge Function-прокси к DaData API для поиска организации по ИНН. Вызывается только авторизованными пользователями (JWT). API-ключ DaData хранится в Supabase Secrets (DADATA_API_KEY).
+- **dadata-find-party** — Edge Function-прокси к DaData API. Поиск по ИНН (findById/party) или по названию (suggest/party). Вызывается только авторизованными пользователями (JWT). API-ключ DaData хранится в Supabase Secrets (DADATA_API_KEY).
+- **401 при поиске**: Шлюз Supabase мог отклонять JWT (ES256/HS256). dadata-find-party деплоится с `--no-verify-jwt`; проверка JWT выполняется внутри функции через `getUser()` — доступ без валидного токена по-прежнему запрещён.
+- **Поиск по названию** — в форме организации добавлен блок «Поиск организации»: одно поле для названия или ИНН, кнопка «Найти». ИНН (10/12 цифр) → findById, иначе → suggest/party (первый результат). Кнопка «Заполнить фейковыми данными» и allowFakeOrgData удалены.
 - Валидация ИНН на бэкенде: формат (10 или 12 цифр) + контрольная сумма по алгоритму ФНС. Запрос к DaData только после прохождения обоих уровней.
 - Таймаут запроса к DaData — 7 секунд. При таймауте/ошибке возвращается 502, логируется ошибка. Основное действие (сохранение организации вручную) не блокируется.
 - Логирование: каждый запрос и ответ логируется в Edge Function (requestId, inn, status, body). При ошибках — полный контекст для отладки.
