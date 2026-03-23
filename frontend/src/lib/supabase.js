@@ -30,7 +30,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
  * POST в Edge Function с явным токеном (опционально).
  * Без token использует getSession(). С token — передаёт его в Authorization.
  * - при 401 → refreshSession() и повтор
- * - при повторном 401/ошибке refresh → signOut + редирект на /auth/login
+ * - при ошибке refresh → signOut + редирект. При повторном 401 после refresh — только возврат ошибки (не signOut)
  * @param {string} functionName
  * @param {object} payload
  * @param {string} [explicitToken] - access_token из AuthContext (если есть)
@@ -84,9 +84,9 @@ export async function callEdgeFunction(functionName, payload, explicitToken = nu
 
   ({ status, data, error } = await attempt(false)); // retry with fresh token from session
   if (status === 401) {
-    await supabase.auth.signOut();
-    window.location.assign('/auth/login');
-    return { data: null, error: error || { message: 'Сессия истекла, войдите снова.' }, status: 401 };
+    // Refresh прошёл, но повторный запрос снова 401 — возможна ошибка конфигурации
+    // (JWT gateway). Не делаем signOut — возвращаем ошибку, чтобы UI показал её.
+    return { data: null, error: error || { message: 'Ошибка доступа. Проверьте настройки проекта (Edge Functions: --no-verify-jwt).' }, status: 401 };
   }
 
   return { data, error, status };
@@ -120,9 +120,7 @@ export async function invokeEdgeFunction(functionName, body = {}) {
     ({ data, error } = await supabase.functions.invoke(functionName, { body }));
     if (!error) return { data, error: null, status: 200 };
     if (error?.context?.status === 401) {
-      await supabase.auth.signOut();
-      window.location.assign('/auth/login');
-      return { data: null, error: toError(error) };
+      return { data: null, error: toError(error), status: 401 };
     }
   }
 
@@ -155,8 +153,6 @@ export async function fetchFromEdge(functionName) {
     ({ data, error } = await supabase.functions.invoke(functionName, { body: {} }));
     if (!error) return { data, error: null };
     if (error?.context?.status === 401) {
-      await supabase.auth.signOut();
-      window.location.assign('/auth/login');
       return { data: null, error: toError(error) };
     }
   }

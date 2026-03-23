@@ -99,25 +99,23 @@ export function AuthProvider({ children }) {
       });
 
     // Подписка на изменения состояния авторизации (вход / выход / обновление токена)
+    // Важно: не вызывать await Supabase-методов внутри callback — приводит к deadlock
+    // (см. https://supabase.com/docs/reference/javascript/auth-onauthstatechange)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        try {
-          if (cancelled) return;
-          if (session?.user) {
-            // При SIGNED_IN сессия уже свежая, refreshSession может подвисать — не вызываем
-            setUser(session.user);
-            setAccessToken(session.access_token);
-            setIsLoggedIn(true);
-            await fetchProfile(session.access_token);
-          } else {
-            setUser(null);
-            setProfile(null);
-            setAccessToken(null);
-            setIsLoggedIn(false);
-          }
-        } finally {
-          if (!cancelled) setLoading(false);
+      (event, session) => {
+        if (cancelled) return;
+        if (session?.user) {
+          setUser(session.user);
+          setAccessToken(session.access_token);
+          setIsLoggedIn(true);
+          setTimeout(() => fetchProfile(session.access_token), 0);
+        } else {
+          setUser(null);
+          setProfile(null);
+          setAccessToken(null);
+          setIsLoggedIn(false);
         }
+        setLoading(false);
       }
     );
 

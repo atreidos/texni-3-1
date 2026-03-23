@@ -7,7 +7,7 @@ import { Plus, Edit2, Trash2, Star, Building2, AlertCircle, Loader2, Sparkles } 
 import DashboardLayout from '../../components/DashboardLayout';
 import Modal from '../../components/Modal';
 import { useAuth } from '../../context/AuthContext';
-import { callEdgeFunction, fetchFromEdge, invokeEdgeFunction } from '../../lib/supabase';
+import { callEdgeFunction, fetchFromEdge, invokeEdgeFunction, supabase } from '../../lib/supabase';
 import ErrorBanner from '../../components/ErrorBanner';
 
 // Начальное состояние формы новой организации
@@ -249,8 +249,8 @@ export default function OrganizationsPage() {
     setErrors({});
   }
 
-  const SAVE_TIMEOUT_MS = 15000;
-  const SAVE_TIMEOUT_MSG = 'Сохранение заняло слишком долго. Проверьте соединение.';
+  const SAVE_TIMEOUT_MS = 90000; // 90 сек — cold start Edge Function может быть долгим
+  const SAVE_TIMEOUT_MSG = 'Сервер долго запускается (cold start). Нажмите «Сохранить» ещё раз — повторный запрос обычно быстрее.';
 
   async function handleSave(e) {
     if (e?.preventDefault) e.preventDefault();
@@ -273,11 +273,12 @@ export default function OrganizationsPage() {
       }, SAVE_TIMEOUT_MS);
 
       try {
+        const token = (await supabase.auth.getSession()).data?.session?.access_token ?? null;
         if (editOrg) {
           const { data: res, error: err } = await callEdgeFunction('organizations-update', {
             id: editOrg.id,
             form,
-          });
+          }, token);
           clearTimeout(timeoutId);
           if (err) throw new Error(err.message);
           const updated = res?.data;
@@ -285,10 +286,12 @@ export default function OrganizationsPage() {
             prev.map(o => (o.id === editOrg.id ? (updated || { ...form, id: editOrg.id }) : o)),
           );
         } else {
-          const { error: err } = await callEdgeFunction('organizations-create', form);
+          const { data: res, error: err } = await callEdgeFunction('organizations-create', form, token);
           clearTimeout(timeoutId);
           if (err) throw new Error(err.message);
-          await fetchOrgs();
+          const created = res?.data;
+          if (created) setOrgs(prev => [...prev, created]);
+          else await fetchOrgs();
         }
         setModalOpen(false);
       } catch (inner) {
@@ -305,7 +308,8 @@ export default function OrganizationsPage() {
 
   async function handleDelete(id) {
     setActionError(null);
-    const { error: err } = await callEdgeFunction('organizations-delete', { id });
+    const token = (await supabase.auth.getSession()).data?.session?.access_token ?? null;
+    const { error: err } = await callEdgeFunction('organizations-delete', { id }, token);
 
     if (err) {
       setActionError(err.message);
@@ -316,7 +320,8 @@ export default function OrganizationsPage() {
 
   async function handleSetMain(id) {
     setActionError(null);
-    const { error: err } = await callEdgeFunction('organizations-set-main', { id });
+    const token = (await supabase.auth.getSession()).data?.session?.access_token ?? null;
+    const { error: err } = await callEdgeFunction('organizations-set-main', { id }, token);
 
     if (err) {
       setActionError(err.message);
