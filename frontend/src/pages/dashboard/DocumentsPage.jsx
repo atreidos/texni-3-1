@@ -8,7 +8,7 @@ import { Search, FileText, Download, Trash2, ExternalLink, Filter, AlertCircle, 
 import DashboardLayout from '../../components/DashboardLayout';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
-import { callEdgeFunction, fetchFromEdge } from '../../lib/supabase';
+import { callEdgeFunction, fetchFromEdge, supabase } from '../../lib/supabase';
 import ErrorBanner from '../../components/ErrorBanner';
 
 // Форматируем размер в байтах → «48 КБ»
@@ -95,6 +95,27 @@ export default function DocumentsPage() {
       setActionError(err.message);
     } else {
       setDocs(prev => prev.filter(d => d.id !== id));
+    }
+  }
+
+  async function handleDownload(doc) {
+    if (!doc.filePath) {
+      setActionError('Файл недоступен для скачивания');
+      return;
+    }
+    setActionError(null);
+    try {
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .createSignedUrl(doc.filePath, 60);
+      if (error) throw error;
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank', 'noopener');
+      } else {
+        throw new Error('Не удалось получить ссылку');
+      }
+    } catch (e) {
+      setActionError(e?.message || 'Ошибка скачивания');
     }
   }
 
@@ -234,8 +255,10 @@ export default function DocumentsPage() {
                             <ExternalLink size={15} />
                           </button>
                           <button
-                            className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-                            title="Скачать"
+                            onClick={() => handleDownload(doc)}
+                            disabled={!doc.filePath}
+                            className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            title={doc.filePath ? 'Скачать' : 'Файл недоступен'}
                           >
                             <Download size={15} />
                           </button>

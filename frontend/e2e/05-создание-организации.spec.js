@@ -20,7 +20,7 @@ async function createOrgAndWaitInList(page, inn, fallbackName) {
   // Ждём закрытия модалки (успех) — затем имя в списке карточек (h3)
   await expect(page.getByRole('heading', { name: 'Добавить организацию' })).not.toBeVisible({ timeout: 20000 });
   const namePart = fallbackName.replace(/ООО\s*[«"']|["»']/g, '').trim();
-  await expect(page.getByText(new RegExp(namePart, 'i'))).toBeVisible({ timeout: 10000 });
+  await expect(page.getByText(new RegExp(namePart, 'i')).first()).toBeVisible({ timeout: 10000 });
   return orgName;
 }
 

@@ -19,8 +19,9 @@ npm test
 
 - [ ] `.env` с `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY`
 - [ ] Confirm email выключен в Supabase
-- [ ] Edge Functions `organizations-create`, `profile-update` задеплоены
+- [ ] Edge Functions `organizations-create`, `profile-update`, `documents-create`, `documents-delete` задеплоены
 - [ ] При использовании DaData — `dadata-find-party` задеплоена, `DADATA_API_KEY` в Secrets
+- [ ] Миграция `004_storage_documents_bucket.sql` применена (bucket + RLS)
 
 ---
 
@@ -141,7 +142,7 @@ supabase functions deploy organizations-delete --workdir backend
 
 ## Итоговая таблица проведённых тестов
 
-*Прогон: 23.03.2025*
+*Прогон: 23.03.2025 (последний)*
 
 | № | Сценарий | Результат | Примечание |
 |---|----------|-----------|------------|
@@ -156,10 +157,17 @@ supabase functions deploy organizations-delete --workdir backend
 | 4b | Валидация: короткий пароль | ✅ Passed | |
 | 4c | Валидация: пароли не совпадают | ✅ Passed | |
 | 4d | Валидация: без оферты | ✅ Passed | |
-| 5a | Создание организации (Яндекс) | ❌ Failed | Организация не отображается в списке после сохранения |
-| 5b | Создание организации (Озон) | ❌ Failed | Организация не отображается в списке после сохранения |
-| 6a | Удаление организации | ❌ Failed | Карточка организации не найдена (зависит от 5a) |
+| 5a | Создание организации (Яндекс) | ✅ Passed | Исправлен strict mode (.first()) |
+| 5b | Создание организации (Озон) | ✅ Passed | |
+| 6a | Удаление организации | ✅ Passed | Использована уникальная организация (Сбербанк) |
 | 6b | Удаление документа | ⏭️ Skipped | Нет документов в списке |
-| 7 | Обновление профиля | ❌ Failed | input[type="text"] не найден / редирект |
+| 7 | Обновление профиля | ✅ Passed | Деплой с --no-verify-jwt; тест ждёт загрузку формы и заполняет email |
+| 8 | Сохранение документа | Добавлен | Editor: upload PDF → Save → redirect /documents; требует миграцию 004, bucket |
 
-**Итого:** 12 passed · 4 failed · 1 skipped (17 тестов)
+**Итого:** 16 passed · 0 failed · 1 skipped (17 тестов) + тест 08 добавлен
+
+### Исправления (23.03.2025)
+
+1. **SettingsPage** — замена `callEdgeFunction` на `invokeEdgeFunction` для profile-update (как в OrganizationsPage)
+2. **05** — `.first()` при multiple matches (Яндекс/Озон в DaData возвращают дубликаты)
+3. **06** — уникальная организация (Сбербанк, ИНН 7707083893) вместо повторного создания Яндекс

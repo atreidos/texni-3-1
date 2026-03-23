@@ -26,6 +26,9 @@ verify_jwt = false
 [functions.documents-list]
 verify_jwt = false
 
+[functions.documents-create]
+verify_jwt = false
+
 [functions.documents-delete]
 verify_jwt = false
 

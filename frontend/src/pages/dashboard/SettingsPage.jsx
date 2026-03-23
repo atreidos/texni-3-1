@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { Camera, AlertTriangle, Loader2, AlertCircle } from 'lucide-react';
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
-import { callEdgeFunction, supabase } from '../../lib/supabase';
+import { invokeEdgeFunction, supabase } from '../../lib/supabase';
 
 export default function SettingsPage() {
   const { user, profile, logout, refreshProfile } = useAuth();
@@ -44,7 +44,7 @@ export default function SettingsPage() {
     setProfileError('');
     setProfileSaving(true);
 
-    const { error: err } = await callEdgeFunction('profile-update', {
+    const { error: err } = await invokeEdgeFunction('profile-update', {
       name: profileForm.name,
       email: profileForm.email,
       phone: profileForm.phone || null,

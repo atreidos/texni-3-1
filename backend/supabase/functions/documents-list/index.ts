@@ -52,7 +52,7 @@ serve(async (req) => {
     const { data, error } = await supabase
       .from("documents")
       .select(
-        "id,name,type,status,updated_at,size_bytes,organization_id,organizations(name)",
+        "id,name,type,status,updated_at,size_bytes,file_path,organization_id,organizations(name)",
       )
       .eq("user_id", user.id)
       .order("updated_at", { ascending: false });
@@ -66,6 +66,7 @@ serve(async (req) => {
       status: row.status,
       updatedAt: row.updated_at,
       sizeBytes: row.size_bytes,
+      filePath: row.file_path,
       organizationName: row.organizations?.name ?? null,
     }));
 

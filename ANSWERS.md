@@ -1,5 +1,6 @@
 # ANSWERS.md
 
+- **Документы: загрузка, удаление, скачивание** — bucket `documents` в Supabase Storage (миграция 004). Путь `{user_id}/{doc_id}/{filename}`. RLS: INSERT/SELECT/DELETE только для своей папки. EditorPage Save: upload в Storage + documents-create. DocumentsPage: Download через createSignedUrl; Delete — удаление файла из Storage в Edge Function. Реальное заполнение реквизитов из содержимого файла не реализовано.
 - Добавлено правило БД: у одного пользователя может быть только одна "основная" организация (`organizations.is_main = true`). Реализовано частичным уникальным индексом в миграции `backend/supabase/migrations/002_organizations_one_main_per_user.sql`.
 - Сортировка документов по дате (`updated_at`) для UI-выбора «Сначала новые / Сначала старые» не требует изменений в БД: текущая реализация меняет порядок на фронтенде после фильтрации.
 - Полное разделение фронтенда и БД: фронтенд больше не использует `supabase.from(...)` для данных, а все чтение/запись идут через Edge Functions `/functions/v1/*`. Маппинг `snake_case <-> camelCase` выполняется на стороне Edge.

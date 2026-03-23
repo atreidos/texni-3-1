@@ -25,7 +25,7 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      testIgnore: [/02-вход|05-создание|06-удаление|07-обновление/],
+      testIgnore: [/02-вход|05-создание|06-удаление|07-обновление|08-сохранение/],
     },
     {
       name: 'chromium-authenticated',
@@ -33,7 +33,7 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         storageState: authStoragePath,
       },
-      testMatch: /(02-вход|05-создание|06-удаление|07-обновление)/,
+      testMatch: /(02-вход|05-создание|06-удаление|07-обновление|08-сохранение)/,
       dependencies: ['setup'],
     },
   ],

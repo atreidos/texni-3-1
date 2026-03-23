@@ -62,7 +62,7 @@ serve(async (req) => {
 
     const { data: doc } = await supabase
       .from("documents")
-      .select("id")
+      .select("id, file_path")
       .eq("id", body.id)
       .maybeSingle();
     if (!doc) {
@@ -70,6 +70,10 @@ serve(async (req) => {
         status: 403,
         headers: CORS_HEADERS,
       });
+    }
+
+    if (doc.file_path) {
+      await supabase.storage.from("documents").remove([doc.file_path]);
     }
 
     const { error } = await supabase

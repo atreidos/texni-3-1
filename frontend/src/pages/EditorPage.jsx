@@ -8,13 +8,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Download, Save, PenTool, Building2, Sparkles,
-  ChevronLeft, ChevronRight, AlertCircle, X
+  ChevronLeft, ChevronRight, AlertCircle, X, Loader2
 } from 'lucide-react';
 import Header from '../components/Header';
 import FileUploader from '../components/FileUploader';
 import ProBadge from '../components/ProBadge';
 import { useAuth } from '../context/AuthContext';
 import { mockDocumentFields } from '../data/mockData';
+import { supabase, callEdgeFunction } from '../lib/supabase';
 
 // Группы полей документа
 const GROUP_LABELS = {
@@ -23,14 +24,23 @@ const GROUP_LABELS = {
   other: 'Прочее',
 };
 
+function getFileType(file) {
+  const n = (file?.name || '').toLowerCase();
+  if (n.endsWith('.pdf')) return 'pdf';
+  if (n.endsWith('.docx')) return 'docx';
+  return 'pdf';
+}
+
 export default function EditorPage() {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, user, accessToken } = useAuth();
   const navigate = useNavigate();
 
   const [file, setFile] = useState(null);              // загруженный файл
   const [fields, setFields] = useState(mockDocumentFields); // поля документа
   const [currentPage, setCurrentPage] = useState(1);
   const [isSaved, setIsSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
   const [showBanner, setShowBanner] = useState(true);  // баннер "войдите чтобы сохранить"
   const totalPages = 3; // заглушка — 3 страницы
 
@@ -40,13 +50,38 @@ export default function EditorPage() {
     setIsSaved(false);
   }
 
-  // Имитация сохранения (только для авторизованных)
-  function handleSave() {
-    if (!isLoggedIn) {
+  // Сохранение в Storage + создание записи в БД
+  async function handleSave() {
+    if (!isLoggedIn || !user || !accessToken || !file) {
       setShowBanner(true);
       return;
     }
-    setIsSaved(true);
+    setSaveError(null);
+    setSaving(true);
+    try {
+      const docId = crypto.randomUUID();
+      const fileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const filePath = `${user.id}/${docId}/${fileName}`;
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file, { upsert: false });
+      if (uploadError) throw new Error(uploadError.message || 'Ошибка загрузки файла');
+
+      const type = getFileType(file);
+      const { error: createError } = await callEdgeFunction(
+        'documents-create',
+        { id: docId, name: file.name, type, file_path: filePath, size_bytes: file.size },
+        accessToken
+      );
+      if (createError) throw new Error(createError.message);
+
+      setIsSaved(true);
+      navigate('/dashboard/documents');
+    } catch (e) {
+      setSaveError(e?.message || 'Ошибка сохранения');
+    } finally {
+      setSaving(false);
+    }
   }
 
   // Группируем поля по группам
@@ -118,10 +153,11 @@ export default function EditorPage() {
           {/* Сохранить */}
           <button
             onClick={handleSave}
-            className="flex items-center gap-1.5 text-sm border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-slate-600"
+            disabled={saving}
+            className="flex items-center gap-1.5 text-sm border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-slate-600 disabled:opacity-50"
           >
-            <Save size={15} />
-            Сохранить
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+            {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
 
           {/* Скачать */}
@@ -131,6 +167,16 @@ export default function EditorPage() {
           </button>
         </div>
       </div>
+
+      {/* Ошибка сохранения */}
+      {saveError && (
+        <div className="bg-red-50 border-b border-red-200 px-4 py-2.5 flex items-center justify-between">
+          <span className="text-sm text-red-800">{saveError}</span>
+          <button onClick={() => setSaveError(null)} className="text-red-600 hover:text-red-800">
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Баннер для незарегистрированных */}
       {!isLoggedIn && showBanner && (

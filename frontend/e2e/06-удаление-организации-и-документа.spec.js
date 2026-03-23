@@ -3,33 +3,36 @@
 import { test, expect } from '@playwright/test';
 
 test('Пользователь удаляет организацию — она исчезает из списка', async ({ page }) => {
+  // Используем уникальную организацию (Сбербанк), чтобы избежать дубликата с 05a/05b
+  const inn = '7707083893';
+  const fallbackName = 'ПАО «Сбербанк»';
+
   await page.goto('/');
   await page.getByRole('link', { name: 'Организации' }).click();
   await expect(page.locator('main').getByText('Загрузка...')).not.toBeVisible({ timeout: 20000 });
   await page.getByRole('button', { name: 'Добавить организацию' }).click();
 
   const searchInput = page.getByPlaceholder('Название (ООО «Альфа») или ИНН');
-  await searchInput.fill('7736207543');
+  await searchInput.fill(inn);
   await page.getByRole('button', { name: 'Найти' }).click();
 
   const nameInput = page.getByPlaceholder('ООО «Название»');
   await page.waitForTimeout(3000);
   const currentName = await nameInput.inputValue();
   if (!currentName.trim()) {
-    await nameInput.fill('ООО «Яндекс»');
-    await page.getByPlaceholder('7701234567').fill('7736207543');
+    await nameInput.fill(fallbackName);
+    await page.getByPlaceholder('7701234567').fill(inn);
     await page.getByPlaceholder('770101001').fill('773601001');
-    await page.getByPlaceholder('1027700132195').fill('1027739244742');
+    await page.getByPlaceholder('1027700132195').fill('1027700132195');
   }
-  const orgName = (await nameInput.inputValue()) || 'ООО «Яндекс»';
+  const orgName = (await nameInput.inputValue()) || fallbackName;
 
   await page.getByRole('button', { name: 'Сохранить' }).first().click();
   await expect(page.getByRole('heading', { name: 'Добавить организацию' })).not.toBeVisible({ timeout: 20000 });
-  const namePart = orgName.replace(/ООО\s*[«"']|["»']/g, '').trim();
+  const namePart = orgName.replace(/ООО\s*[«"']|["»']|ПАО\s*[«"']?|["»']?/g, '').trim();
   const orgCard = page.locator('.rounded-xl').filter({ hasText: new RegExp(namePart, 'i') }).first();
   await expect(orgCard).toBeVisible({ timeout: 10000 });
 
-  // Удаляем организацию (кнопка с иконкой корзины — последняя в карточке)
   await orgCard.locator('button').last().click();
 
   await expect(orgCard).not.toBeVisible({ timeout: 5000 });
