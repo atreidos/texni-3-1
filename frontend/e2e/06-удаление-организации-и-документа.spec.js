@@ -42,17 +42,16 @@ test('Пользователь удаляет документ — он исче
   await page.goto('/');
   await page.getByRole('link', { name: 'Документы' }).click();
   await expect(page).toHaveURL(/\/dashboard\/documents/);
+  await expect(page.locator('main').getByText('Загрузка...')).not.toBeVisible({ timeout: 20000 });
 
   const rows = page.locator('table tbody tr');
-  const count = await rows.count();
+  const countBefore = await rows.count();
 
-  if (count === 0) {
-    test.skip(true, 'Нет документов для удаления — создайте документ через редактор');
+  if (countBefore === 0) {
+    test.skip(true, 'Нет документов для удаления — войдите как test@example.com и создайте документ через /editor');
   }
 
-  const firstRow = rows.first();
-  const firstDocName = await firstRow.locator('p.text-sm.font-medium').first().textContent();
-  await firstRow.locator('button[title="Удалить"]').click();
+  await rows.first().locator('button[title="Удалить"]').click();
 
-  await expect(page.getByText(firstDocName)).not.toBeVisible({ timeout: 5000 });
+  await expect(page.locator('table tbody tr')).toHaveCount(countBefore - 1, { timeout: 5000 });
 });
