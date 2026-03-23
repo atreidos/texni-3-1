@@ -1,0 +1,36 @@
+# Edge Functions: verify_jwt = false на gateway.
+# JWT проверяется внутри каждой функции через getUser() — доступ без токена запрещён.
+# Нужно из‑за несовместимости Legacy JWT и новых JWT Signing Keys в Supabase.
+
+[functions.organizations-create]
+verify_jwt = false
+
+[functions.organizations-update]
+verify_jwt = false
+
+[functions.organizations-delete]
+verify_jwt = false
+
+[functions.organizations-set-main]
+verify_jwt = false
+
+[functions.organizations-list]
+verify_jwt = false
+
+[functions.profile-get]
+verify_jwt = false
+
+[functions.profile-update]
+verify_jwt = false
+
+[functions.documents-list]
+verify_jwt = false
+
+[functions.documents-delete]
+verify_jwt = false
+
+[functions.dadata-find-party]
+verify_jwt = false
+
+[functions.payments-list]
+verify_jwt = false

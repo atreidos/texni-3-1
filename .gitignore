@@ -43,3 +43,13 @@ frontend/dist-ssr
 # Cursor settings
 .cursor/
 .cursorignore
+
+# Playwright
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/e2e/auth-storage.json
+
+# Supabase CLI (локальное состояние, project-ref)
+backend/supabase/.temp/
+backend/supabase/supabase/

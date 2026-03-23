@@ -70,6 +70,18 @@ VITE_SHOW_ERRORS=true
    - Это создаст таблицы `profiles`, `organizations`, `documents`, `document_fields`, `payments`,
      а также настроит RLS-политики и триггеры (в том числе автосоздание профиля при регистрации).
 
+**Деплой Edge Functions** (требуется для E2E-тестов 05, 06, 07):
+
+```bash
+# Из корня проекта (после supabase login)
+supabase link --project-ref <ваш-project-ref>
+supabase functions deploy organizations-create --workdir backend
+supabase functions deploy profile-update --workdir backend
+supabase functions deploy organizations-delete --workdir backend
+```
+
+Project ref смотрите в Supabase Dashboard → Settings → General. Убедитесь, что `frontend/.env` указывает на тот же проект (`VITE_SUPABASE_URL=https://<project-ref>.supabase.co`).
+
 ### 4. Запустите проект
 
 ```bash
@@ -89,6 +101,28 @@ npm run dev
 | `npm run build` | Production-сборка |
 | `npm run preview` | Предпросмотр production-сборки |
 | `npm run lint` | ESLint |
+| `npm test` | Playwright E2E тесты |
+| `npm run test:ui` | Playwright UI mode |
+
+---
+
+## E2E тесты (Playwright)
+
+В `frontend/e2e/` находятся E2E тесты по сценариям:
+
+1. Регистрация и редирект в личный кабинет
+2. Вход и редирект на «Обзор»
+3. Неавторизованный пользователь перенаправляется на логин
+4. Валидация формы регистрации (пустые поля, пароль, оферта)
+5. Создание организации (Яндекс, Озон) — DaData
+6. Удаление организации и документа
+7. Обновление профиля в настройках
+
+**Запуск:** `cd frontend && npm test` (приложение должно быть на http://localhost:5173, или webServer в playwright.config.js запустит его автоматически).
+
+**Тестовый пользователь:** `auth.setup.js` регистрирует или логинит `test@example.com` / `password123` перед тестами. Confirm email должен быть отключён (Supabase → Auth → Providers → Email).
+
+Полный план тестов (17 сценариев), подготовка и результаты — [frontend/QA.md](frontend/QA.md).
 
 ---
 
@@ -96,6 +130,7 @@ npm run dev
 
 ```
 frontend/                     # Frontend (React + Vite), выполняется в браузере
+├── e2e/                      # Playwright E2E тесты
 ├── src/                      # React-код приложения
 ├── public/                   # статические файлы
 ├── index.html                # HTML-шаблон
@@ -142,6 +177,13 @@ Frontend не обращается напрямую к таблицам Supabase
 - `POST /functions/v1/dadata-find-party` — поиск организации через DaData: по ИНН (`body`: `{ inn }`) или по названию (`body`: `{ query }`). Возвращает реквизиты для автозаполнения формы. Требует JWT и `DADATA_API_KEY` в Supabase Secrets.
 
 **DaData:** для работы поиска организации (по названию или ИНН) добавьте секрет. При 401: деплойте с `--no-verify-jwt` — `supabase functions deploy dadata-find-party --no-verify-jwt`. Supabase Dashboard → Project Settings → Edge Functions → Secrets → `DADATA_API_KEY`. Ключ получают на [dadata.ru](https://dadata.ru) (бесплатно до 10 000 запросов/день).
+
+**Invalid JWT / 401:** в `backend/supabase/config.toml` задано `verify_jwt = false` для Edge Functions. JWT проверяется внутри каждой функции через `getUser()`, доступ без токена запрещён. После изменения config нужно переразвернуть:
+```bash
+cd backend
+supabase functions deploy organizations-create organizations-update organizations-delete organizations-set-main organizations-list
+supabase functions deploy profile-get profile-update documents-list documents-delete dadata-find-party payments-list
+```
 
 ---
 ## Безопасность
