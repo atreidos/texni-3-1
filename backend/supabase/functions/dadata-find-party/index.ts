@@ -7,16 +7,10 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Content-Type": "application/json",
-};
 
 const INN_REGEX = /^\d{10}$|^\d{12}$/;
 const DADATA_FIND_BY_ID_URL = "https://suggestions.dadata.ru/suggestions/api/4_1/rs/findById/party";
@@ -109,6 +103,7 @@ function addWarnings(mapped: Record<string, unknown>): Record<string, unknown> {
 }
 
 serve(async (req) => {
+  const cors = getCorsHeaders(req);
   const requestId = crypto.randomUUID().slice(0, 8);
   const log = (msg: string, data?: unknown) => {
     console.log(`[dadata-find-party ${requestId}] ${msg}`, data ?? "");
@@ -117,13 +112,13 @@ serve(async (req) => {
   log("Request received", { method: req.method });
 
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: CORS_HEADERS });
+    return new Response(null, { status: 204, headers: cors });
   }
 
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method Not Allowed" }), {
       status: 405,
-      headers: CORS_HEADERS,
+      headers: cors,
     });
   }
 
@@ -132,7 +127,7 @@ serve(async (req) => {
     log("Unauthorized: no Bearer token");
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
-      headers: CORS_HEADERS,
+      headers: cors,
     });
   }
   const jwt = authHeader.replace("Bearer ", "");
@@ -153,14 +148,14 @@ serve(async (req) => {
       log("Unauthorized: invalid or missing user", { userError: userError?.message });
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: CORS_HEADERS,
+        headers: cors,
       });
     }
   } catch (e) {
     log("Auth check error", e);
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
-      headers: CORS_HEADERS,
+      headers: cors,
     });
   }
 
@@ -171,7 +166,7 @@ serve(async (req) => {
     log("Invalid JSON body");
     return new Response(JSON.stringify({ error: "Invalid payload" }), {
       status: 400,
-      headers: CORS_HEADERS,
+      headers: cors,
     });
   }
 
@@ -184,7 +179,7 @@ serve(async (req) => {
     log("DaData not configured: DADATA_API_KEY missing");
     return new Response(JSON.stringify({ error: "DaData не настроен" }), {
       status: 500,
-      headers: CORS_HEADERS,
+      headers: cors,
     });
   }
 
@@ -195,7 +190,7 @@ serve(async (req) => {
     log("Invalid request: need inn (10/12 digits) or query (>=2 chars)");
     return new Response(JSON.stringify({ error: "Укажите ИНН (10 или 12 цифр) или название (минимум 2 символа)" }), {
       status: 400,
-      headers: CORS_HEADERS,
+      headers: cors,
     });
   }
 
@@ -204,7 +199,7 @@ serve(async (req) => {
       log("INN checksum failed", { inn });
       return new Response(JSON.stringify({ error: "ИНН содержит ошибку (алгоритм ФНС)" }), {
         status: 400,
-        headers: CORS_HEADERS,
+        headers: cors,
       });
     }
   }
@@ -235,7 +230,7 @@ serve(async (req) => {
       log("DaData 401: invalid API key");
       return new Response(JSON.stringify({ error: "Ошибка доступа к DaData" }), {
         status: 502,
-        headers: CORS_HEADERS,
+        headers: cors,
       });
     }
 
@@ -243,7 +238,7 @@ serve(async (req) => {
       log("DaData 429: rate limit exceeded");
       return new Response(JSON.stringify({ error: "Превышен лимит запросов. Попробуйте позже" }), {
         status: 502,
-        headers: CORS_HEADERS,
+        headers: cors,
       });
     }
 
@@ -252,7 +247,7 @@ serve(async (req) => {
       log("DaData 5xx", { status: dadataRes.status, body: text.slice(0, 200) });
       return new Response(JSON.stringify({ error: "Сервис временно недоступен" }), {
         status: 502,
-        headers: CORS_HEADERS,
+        headers: cors,
       });
     }
 
@@ -263,7 +258,7 @@ serve(async (req) => {
     if (!Array.isArray(suggestions) || suggestions.length === 0) {
       return new Response(JSON.stringify({ ok: true, data: null }), {
         status: 200,
-        headers: CORS_HEADERS,
+        headers: cors,
       });
     }
 
@@ -287,7 +282,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ ok: true, data: out }), {
       status: 200,
-      headers: CORS_HEADERS,
+      headers: cors,
     });
   } catch (e) {
     clearTimeout(timeoutId);
@@ -298,13 +293,13 @@ serve(async (req) => {
     if (isTimeout) {
       return new Response(JSON.stringify({ error: "Сервис временно недоступен" }), {
         status: 502,
-        headers: CORS_HEADERS,
+        headers: cors,
       });
     }
 
     return new Response(JSON.stringify({ error: "Сервис временно недоступен" }), {
       status: 502,
-      headers: CORS_HEADERS,
+      headers: cors,
     });
   }
 });

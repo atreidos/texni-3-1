@@ -68,9 +68,10 @@ export default function EditorPage() {
       if (uploadError) throw new Error(uploadError.message || 'Ошибка загрузки файла');
 
       const type = getFileType(file);
+      const mimeType = file.type || '';
       const { error: createError } = await callEdgeFunction(
         'documents-create',
-        { id: docId, name: file.name, type, file_path: filePath, size_bytes: file.size },
+        { id: docId, name: file.name, type, mime_type: mimeType, file_path: filePath, size_bytes: file.size },
         accessToken
       );
       if (createError) throw new Error(createError.message);

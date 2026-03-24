@@ -143,9 +143,9 @@ export function AuthProvider({ children }) {
     if (error) throw error;
   }
 
-  // Выход
+  // Выход (scope: 'global' — выход на всех устройствах/вкладках)
   async function logout() {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: 'global' });
   }
 
   // Позволяет обновить profile в контексте после изменений в SettingsPage

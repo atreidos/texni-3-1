@@ -77,7 +77,7 @@ export async function callEdgeFunction(functionName, payload, explicitToken = nu
 
   const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
   if (refreshError || !refreshed?.session) {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: 'global' });
     window.location.assign('/auth/login');
     return { data: null, error: error || { message: 'Сессия истекла, войдите снова.' } };
   }
@@ -113,7 +113,7 @@ export async function invokeEdgeFunction(functionName, body = {}) {
   if (status === 401) {
     const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
     if (refreshError || !refreshed?.session) {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'global' });
       window.location.assign('/auth/login');
       return { data: null, error: toError(error) };
     }
@@ -146,7 +146,7 @@ export async function fetchFromEdge(functionName) {
   if (status === 401) {
     const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
     if (refreshError || !refreshed?.session) {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'global' });
       window.location.assign('/auth/login');
       return { data: null, error: toError(error) };
     }

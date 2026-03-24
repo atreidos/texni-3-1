@@ -1,15 +1,9 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Content-Type": "application/json",
-};
 
 const INN_REGEX = /^\d{10}$|^\d{12}$/;
 const KPP_REGEX = /^\d{9}$/;
@@ -51,14 +45,15 @@ function validateOrgForm(form: Record<string, unknown>): string | null {
 }
 
 serve(async (req) => {
+  const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: CORS_HEADERS });
+    return new Response(null, { status: 204, headers: cors });
   }
 
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method Not Allowed" }), {
       status: 405,
-      headers: CORS_HEADERS,
+      headers: cors,
     });
   }
 
@@ -66,7 +61,7 @@ serve(async (req) => {
   if (!authHeader?.startsWith("Bearer ")) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
-      headers: CORS_HEADERS,
+      headers: cors,
     });
   }
   const jwt = authHeader.replace("Bearer ", "");
@@ -84,7 +79,7 @@ serve(async (req) => {
     if (userError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: CORS_HEADERS,
+        headers: cors,
       });
     }
 
@@ -93,7 +88,7 @@ serve(async (req) => {
     if (!form) {
       return new Response(JSON.stringify({ error: "Invalid payload" }), {
         status: 400,
-        headers: CORS_HEADERS,
+        headers: cors,
       });
     }
 
@@ -101,7 +96,7 @@ serve(async (req) => {
     if (validationError) {
       return new Response(JSON.stringify({ error: validationError }), {
         status: 400,
-        headers: CORS_HEADERS,
+        headers: cors,
       });
     }
 
@@ -153,13 +148,13 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ ok: true, data: out }), {
       status: 200,
-      headers: CORS_HEADERS,
+      headers: cors,
     });
   } catch (e) {
     console.error(e);
     return new Response(JSON.stringify({ error: "Internal Server Error" }), {
       status: 500,
-      headers: CORS_HEADERS,
+      headers: cors,
     });
   }
 });

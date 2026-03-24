@@ -81,6 +81,9 @@ frontend/
 ```
 backend/
 └── supabase/
+├── functions/
+│   └── _shared/
+│       └── cors.ts         # CORS: getCorsHeaders(req), читает CORS_ALLOWED_ORIGINS из Secrets
 ├── migrations/
 │   ├── 001_init_schema.sql   # SQL-схема БД, триггеры, RLS-политики
 │   └── 004_storage_documents_bucket.sql  # bucket documents + RLS (INSERT/SELECT/DELETE)

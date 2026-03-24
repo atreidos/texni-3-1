@@ -50,7 +50,12 @@ Supabase Auth не ограничивает количество попыток 
 
 ## CORS (Edge Functions)
 
-По умолчанию CORS в Edge Functions настроен как `*` — любой сайт может инициировать запросы. Для production рекомендуется ограничить `Access-Control-Allow-Origin` списком разрешённых доменов.
+CORS настраивается через секрет `CORS_ALLOWED_ORIGINS` (Supabase Dashboard → Project Settings → Edge Functions → Secrets).
+
+- **Не задан или `*`** — `Access-Control-Allow-Origin: *` (любой сайт)
+- **Задан список** — например `https://app.example.com,http://localhost:5173` (через запятую). Ответ содержит Origin только если он в списке.
+
+Все Edge Functions используют `_shared/cors.ts`.
 
 ---
 
