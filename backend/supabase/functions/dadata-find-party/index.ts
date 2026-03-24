@@ -8,6 +8,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { validation400One } from "../_shared/validation-response.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -164,10 +165,7 @@ serve(async (req) => {
     body = await req.json();
   } catch {
     log("Invalid JSON body");
-    return new Response(JSON.stringify({ error: "Invalid payload" }), {
-      status: 400,
-      headers: cors,
-    });
+    return validation400One(cors, "body", "Некорректный JSON в теле запроса");
   }
 
   const inn = String(body?.inn ?? "").trim();
@@ -188,19 +186,17 @@ serve(async (req) => {
 
   if (!useInn && !useQuery) {
     log("Invalid request: need inn (10/12 digits) or query (>=2 chars)");
-    return new Response(JSON.stringify({ error: "Укажите ИНН (10 или 12 цифр) или название (минимум 2 символа)" }), {
-      status: 400,
-      headers: cors,
-    });
+    return validation400One(
+      cors,
+      "search",
+      "Укажите ИНН (10 или 12 цифр) или название (минимум 2 символа)",
+    );
   }
 
   if (useInn) {
     if (!validateInnChecksum(inn)) {
       log("INN checksum failed", { inn });
-      return new Response(JSON.stringify({ error: "ИНН содержит ошибку (алгоритм ФНС)" }), {
-        status: 400,
-        headers: cors,
-      });
+      return validation400One(cors, "inn", "ИНН содержит ошибку (алгоритм ФНС)");
     }
   }
 

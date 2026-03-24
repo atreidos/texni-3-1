@@ -70,14 +70,23 @@ VITE_SHOW_ERRORS=true
    - Это создаст таблицы `profiles`, `organizations`, `documents`, `document_fields`, `payments`,
      а также настроит RLS-политики и триггеры (в том числе автосоздание профиля при регистрации).
 
-**Деплой Edge Functions** (требуется для E2E-тестов 05, 06, 07):
+**Деплой Edge Functions** (нужен для E2E 05–08 и чтобы в облаке совпадали валидация и формат ошибок с репозиторием):
 
 ```bash
 # Из корня проекта (после supabase login)
 supabase link --project-ref <ваш-project-ref>
-supabase functions deploy organizations-create --workdir backend
+```
+
+Одной командой — все функции приложения (включая `documents-create`, `create-payment`):
+
+```bash
+supabase functions deploy organizations-create organizations-update organizations-delete organizations-set-main organizations-list profile-get profile-update documents-list documents-create documents-delete dadata-find-party payments-list create-payment --workdir backend
+```
+
+Отдельные функции при необходимости:
+
+```bash
 supabase functions deploy profile-update --workdir backend
-supabase functions deploy organizations-delete --workdir backend
 ```
 
 Project ref смотрите в Supabase Dashboard → Settings → General. Убедитесь, что `frontend/.env` указывает на тот же проект (`VITE_SUPABASE_URL=https://<project-ref>.supabase.co`).
@@ -178,12 +187,7 @@ Frontend не обращается напрямую к таблицам Supabase
 
 **DaData:** для работы поиска организации (по названию или ИНН) добавьте секрет. При 401: деплойте с `--no-verify-jwt` — `supabase functions deploy dadata-find-party --no-verify-jwt`. Supabase Dashboard → Project Settings → Edge Functions → Secrets → `DADATA_API_KEY`. Ключ получают на [dadata.ru](https://dadata.ru) (бесплатно до 10 000 запросов/день).
 
-**Invalid JWT / 401:** в `backend/supabase/config.toml` задано `verify_jwt = false` для Edge Functions. JWT проверяется внутри каждой функции через `getUser()`, доступ без токена запрещён. После изменения config нужно переразвернуть:
-```bash
-cd backend
-supabase functions deploy organizations-create organizations-update organizations-delete organizations-set-main organizations-list
-supabase functions deploy profile-get profile-update documents-list documents-delete dadata-find-party payments-list
-```
+**Invalid JWT / 401:** в `backend/supabase/config.toml` задано `verify_jwt = false` для Edge Functions. JWT проверяется внутри каждой функции через `getUser()`, доступ без токена запрещён. После изменения config переразверните функции (полный список — в блоке «Деплой Edge Functions» выше).
 
 ---
 ## Безопасность

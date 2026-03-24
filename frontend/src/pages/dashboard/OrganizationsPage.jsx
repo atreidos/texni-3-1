@@ -7,7 +7,7 @@ import { Plus, Edit2, Trash2, Star, Building2, AlertCircle, Loader2, Sparkles } 
 import DashboardLayout from '../../components/DashboardLayout';
 import Modal from '../../components/Modal';
 import { useAuth } from '../../context/AuthContext';
-import { callEdgeFunction, fetchFromEdge, invokeEdgeFunction, supabase } from '../../lib/supabase';
+import { callEdgeFunction, fetchFromEdge, invokeEdgeFunction, supabase, validationErrorsMap } from '../../lib/supabase';
 import ErrorBanner from '../../components/ErrorBanner';
 
 // Начальное состояние формы новой организации
@@ -217,7 +217,14 @@ export default function OrganizationsPage() {
 
     if (err) {
       if (status === 400) {
-        setDadataError(err?.message || (useInn ? 'Проверьте правильность ИНН' : 'Проверьте запрос'));
+        const m = validationErrorsMap(err);
+        const line =
+          m.search ||
+          m.inn ||
+          m.body ||
+          err?.message ||
+          (useInn ? 'Проверьте правильность ИНН' : 'Проверьте запрос');
+        setDadataError(line);
       } else if (status === 401 || status === 403) {
         setDadataError('Ошибка доступа к сервису. Обратитесь в поддержку');
       } else {
@@ -280,7 +287,17 @@ export default function OrganizationsPage() {
             form,
           }, token);
           clearTimeout(timeoutId);
-          if (err) throw new Error(err.message);
+          if (err) {
+            const m = validationErrorsMap(err);
+            if (Object.keys(m).length > 0) {
+              setErrors((prev) => ({ ...prev, ...m }));
+              setSubmitted(true);
+              setSaveError('');
+              return;
+            }
+            setSaveError(err.message);
+            return;
+          }
           const updated = res?.data;
           setOrgs(prev =>
             prev.map(o => (o.id === editOrg.id ? (updated || { ...form, id: editOrg.id }) : o)),
@@ -288,7 +305,17 @@ export default function OrganizationsPage() {
         } else {
           const { data: res, error: err } = await callEdgeFunction('organizations-create', form, token);
           clearTimeout(timeoutId);
-          if (err) throw new Error(err.message);
+          if (err) {
+            const m = validationErrorsMap(err);
+            if (Object.keys(m).length > 0) {
+              setErrors((prev) => ({ ...prev, ...m }));
+              setSubmitted(true);
+              setSaveError('');
+              return;
+            }
+            setSaveError(err.message);
+            return;
+          }
           const created = res?.data;
           if (created) setOrgs(prev => [...prev, created]);
           else await fetchOrgs();

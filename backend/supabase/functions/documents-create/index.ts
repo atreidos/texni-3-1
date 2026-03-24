@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { validation400One } from "../_shared/validation-response.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -68,55 +69,31 @@ serve(async (req) => {
     const sizeBytes = body?.size_bytes;
 
     if (!id || !UUID_RE.test(id)) {
-      return new Response(JSON.stringify({ error: "Invalid id" }), {
-        status: 400,
-        headers: cors,
-      });
+      return validation400One(cors, "id", "Некорректный идентификатор документа");
     }
     if (!name) {
-      return new Response(JSON.stringify({ error: "Название документа обязательно" }), {
-        status: 400,
-        headers: cors,
-      });
+      return validation400One(cors, "name", "Название документа обязательно");
     }
     if (!TYPE_VALID.test(type)) {
-      return new Response(JSON.stringify({ error: "Тип должен быть pdf или docx" }), {
-        status: 400,
-        headers: cors,
-      });
+      return validation400One(cors, "type", "Тип должен быть pdf или docx");
     }
     if (mimeType && (!MIME_ALLOWED.has(mimeType) || !mimeMatchesType(mimeType, type))) {
-      return new Response(JSON.stringify({ error: "Неверный MIME-тип файла" }), {
-        status: 400,
-        headers: cors,
-      });
+      return validation400One(cors, "mime_type", "Неверный MIME-тип файла");
     }
     if (!filePath) {
-      return new Response(JSON.stringify({ error: "Путь к файлу обязателен" }), {
-        status: 400,
-        headers: cors,
-      });
+      return validation400One(cors, "file_path", "Путь к файлу обязателен");
     }
     if (filePath.split("/")[0] !== user.id) {
-      return new Response(JSON.stringify({ error: "Неверный путь к файлу" }), {
-        status: 400,
-        headers: cors,
-      });
+      return validation400One(cors, "file_path", "Неверный путь к файлу");
     }
     const size = sizeBytes != null ? parseInt(String(sizeBytes), 10) : null;
     if (size != null && (isNaN(size) || size < 0)) {
-      return new Response(JSON.stringify({ error: "Неверный размер файла" }), {
-        status: 400,
-        headers: cors,
-      });
+      return validation400One(cors, "size_bytes", "Неверный размер файла");
     }
 
     const organizationId = body?.organization_id ?? null;
     if (organizationId != null && !UUID_RE.test(organizationId)) {
-      return new Response(JSON.stringify({ error: "Invalid organization_id" }), {
-        status: 400,
-        headers: cors,
-      });
+      return validation400One(cors, "organization_id", "Некорректный идентификатор организации");
     }
 
     if (organizationId) {
@@ -127,10 +104,7 @@ serve(async (req) => {
         .eq("user_id", user.id)
         .maybeSingle();
       if (!org) {
-        return new Response(JSON.stringify({ error: "Организация не найдена" }), {
-          status: 400,
-          headers: cors,
-        });
+        return validation400One(cors, "organization_id", "Организация не найдена");
       }
     }
 

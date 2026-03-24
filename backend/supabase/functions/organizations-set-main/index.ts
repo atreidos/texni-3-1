@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { validation400One } from "../_shared/validation-response.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -38,10 +39,7 @@ serve(async (req) => {
   try {
     const body = await req.json();
     if (body?.id === undefined || !UUID_RE.test(body.id)) {
-      return new Response(JSON.stringify({ error: "Invalid id" }), {
-        status: 400,
-        headers: cors,
-      });
+      return validation400One(cors, "id", "Некорректный идентификатор организации");
     }
 
     const {

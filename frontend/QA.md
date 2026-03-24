@@ -171,3 +171,8 @@ supabase functions deploy organizations-delete --workdir backend
 1. **SettingsPage** — замена `callEdgeFunction` на `invokeEdgeFunction` для profile-update (как в OrganizationsPage)
 2. **05** — `.first()` при multiple matches (Яндекс/Озон в DaData возвращают дубликаты)
 3. **06** — уникальная организация (Сбербанк, ИНН 7707083893) вместо повторного создания Яндекс
+
+### Изменение кода 24.03.2025 — create-payment (без E2E)
+
+- Edge Function `create-payment`: при ошибке insert клиенту больше не отдаётся текст из PostgREST, только `{ "error": "Не удалось сохранить платёж" }`; детали в `console.error` на сервере.
+- Автотесты `npm test` в этой сессии: 12 passed, 6 failed (зависание «Загрузка...», пустой email в настройках, редирект с editor — внешний Supabase/сессия, не связано с create-payment).

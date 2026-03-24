@@ -107,6 +107,8 @@ Edge Functions деплоятся через Supabase CLI. Для `create-paymen
 - `organizations-create`, `organizations-update`: name, INN (10/12 цифр), OGRN (13/15 цифр), KPP (9 цифр, опц.), BIK (9 цифр, опц.), счета (20 цифр, опц.) — согласовано с CHECK в БД
 - `dadata-find-party`: ИНН (формат 10/12 цифр + контрольная сумма ФНС) перед запросом к DaData
 
+**Формат ошибок валидации (HTTP 400):** общий модуль `_shared/validation-response.ts`. Ответ: `{ error, field? }` для одной ошибки; при нескольких — дополнительно `errors: [{ field, message }, ...]`. Клиент: `validationErrorsMap()` в `frontend/src/lib/supabase.js` строит объект для подсветки полей; `SettingsPage` и модалка организаций подставляют сообщения по `field`.
+
 ---
 
 ## Логика авторизации

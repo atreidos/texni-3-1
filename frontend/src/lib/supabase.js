@@ -27,6 +27,70 @@ if (!supabaseUrl.includes('supabase.co') || supabaseUrl.includes('localhost')) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
+ * Карта field → message из ответа Edge Function (валидация).
+ * @param {{ message?: string, field?: string, errors?: Array<{ field: string, message: string }> }} err
+ * @returns {Record<string, string>}
+ */
+export function validationErrorsMap(err) {
+  if (!err) return {};
+  const out = {};
+  if (Array.isArray(err.errors) && err.errors.length > 0) {
+    for (const e of err.errors) {
+      if (e.field && e.message && !String(e.field).startsWith('_')) {
+        out[e.field] = e.message;
+      }
+    }
+    return out;
+  }
+  if (err.field && err.message && !String(err.field).startsWith('_')) {
+    out[err.field] = err.message;
+  }
+  return out;
+}
+
+function edgeErrorFromResponseText(status, text) {
+  let msg = status + ' ' + (text || '').slice(0, 80);
+  let field;
+  let errors;
+  try {
+    const j = JSON.parse(text);
+    if (j?.error) msg = j.error;
+    if (j?.message) msg = j.message;
+    field = j.field;
+    if (Array.isArray(j.errors)) errors = j.errors;
+  } catch {
+    /* не JSON */
+  }
+  if (status === 403 && typeof msg === 'string' && !msg.includes('Доступ запрещён')) {
+    msg = 'Доступ запрещён';
+  }
+  return { message: msg, field, errors };
+}
+
+async function readInvokeErrorBody(error) {
+  if (!error || error.name !== 'FunctionsHttpError') return null;
+  const res = error.context;
+  if (!res || typeof res.clone !== 'function') return null;
+  try {
+    const text = await res.clone().text();
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function errorFromInvokePayload(payload, fallbackMessage) {
+  if (!payload || typeof payload !== 'object') {
+    return { message: fallbackMessage || 'Ошибка запроса' };
+  }
+  return {
+    message: payload.error || payload.message || fallbackMessage || 'Ошибка запроса',
+    field: payload.field,
+    errors: Array.isArray(payload.errors) ? payload.errors : undefined,
+  };
+}
+
+/**
  * POST в Edge Function с явным токеном (опционально).
  * Без token использует getSession(). С token — передаёт его в Authorization.
  * - при 401 → refreshSession() и повтор
@@ -57,16 +121,16 @@ export async function callEdgeFunction(functionName, payload, explicitToken = nu
     const status = res.status;
     if (!res.ok) {
       const text = await res.text();
-      let msg = status + ' ' + res.statusText;
-      try {
-        const j = JSON.parse(text);
-        if (j?.error) msg = j.error;
-        if (j?.message) msg = j.message;
-      } catch (_) {}
-      if (status === 403 && !msg.includes('Доступ запрещён')) {
-        msg = 'Доступ запрещён';
-      }
-      return { status, data: null, error: { message: msg } };
+      const parsed = edgeErrorFromResponseText(status, text);
+      return {
+        status,
+        data: null,
+        error: {
+          message: parsed.message,
+          field: parsed.field,
+          errors: parsed.errors,
+        },
+      };
     }
     const data = await res.json();
     return { status, data, error: null };
@@ -97,34 +161,39 @@ export async function callEdgeFunction(functionName, payload, explicitToken = nu
  * Клиент Supabase сам подставляет access_token — избегаем 401 из-за ручной передачи.
  * @param {string} functionName - имя функции, например 'dadata-find-party'
  * @param {object} body - тело запроса (POST)
- * @returns {{ data: unknown, error: { message: string } | null, status?: number }}
+ * @returns {{ data: unknown, error: { message: string, field?: string, errors?: Array<{field: string, message: string}> } | null, status?: number }}
  */
 export async function invokeEdgeFunction(functionName, body = {}) {
-  function toError(obj) {
-    if (!obj) return { message: 'Неизвестная ошибка' };
-    if (typeof obj === 'string') return { message: obj };
-    return { message: obj.message || obj.error || 'Ошибка запроса' };
-  }
-
   let { data, error } = await supabase.functions.invoke(functionName, { body });
   if (!error) return { data, error: null, status: 200 };
 
-  const status = error?.context?.status;
-  if (status === 401) {
-    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
-    if (refreshError || !refreshed?.session) {
-      await supabase.auth.signOut({ scope: 'global' });
-      window.location.assign('/auth/login');
-      return { data: null, error: toError(error) };
-    }
-    ({ data, error } = await supabase.functions.invoke(functionName, { body }));
-    if (!error) return { data, error: null, status: 200 };
-    if (error?.context?.status === 401) {
-      return { data: null, error: toError(error), status: 401 };
-    }
+  let status = error?.context?.status ?? 500;
+  let payload = await readInvokeErrorBody(error);
+  let errOut = errorFromInvokePayload(payload, error.message);
+
+  if (status !== 401) {
+    return { data: null, error: errOut, status };
   }
 
-  return { data: null, error: toError(error), status };
+  const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+  if (refreshError || !refreshed?.session) {
+    await supabase.auth.signOut({ scope: 'global' });
+    window.location.assign('/auth/login');
+    return { data: null, error: errOut, status: 401 };
+  }
+
+  ({ data, error } = await supabase.functions.invoke(functionName, { body }));
+  if (!error) return { data, error: null, status: 200 };
+
+  status = error?.context?.status ?? 500;
+  payload = await readInvokeErrorBody(error);
+  errOut = errorFromInvokePayload(payload, error.message);
+
+  if (status === 401) {
+    return { data: null, error: errOut, status: 401 };
+  }
+
+  return { data: null, error: errOut, status };
 }
 
 /**
@@ -133,29 +202,34 @@ export async function invokeEdgeFunction(functionName, body = {}) {
  * @param {string} functionName - имя функции, например 'profile-get'
  */
 export async function fetchFromEdge(functionName) {
-  function toError(obj) {
-    if (!obj) return { message: 'Неизвестная ошибка' };
-    if (typeof obj === 'string') return { message: obj };
-    return { message: obj.message || obj.error || 'Ошибка запроса' };
-  }
-
   let { data, error } = await supabase.functions.invoke(functionName, { body: {} });
   if (!error) return { data, error: null };
 
-  const status = error?.context?.status;
-  if (status === 401) {
-    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
-    if (refreshError || !refreshed?.session) {
-      await supabase.auth.signOut({ scope: 'global' });
-      window.location.assign('/auth/login');
-      return { data: null, error: toError(error) };
-    }
-    ({ data, error } = await supabase.functions.invoke(functionName, { body: {} }));
-    if (!error) return { data, error: null };
-    if (error?.context?.status === 401) {
-      return { data: null, error: toError(error) };
-    }
+  let status = error?.context?.status ?? 500;
+  let payload = await readInvokeErrorBody(error);
+  let errOut = errorFromInvokePayload(payload, error.message);
+
+  if (status !== 401) {
+    return { data: null, error: errOut };
   }
 
-  return { data: null, error: toError(error) };
+  const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+  if (refreshError || !refreshed?.session) {
+    await supabase.auth.signOut({ scope: 'global' });
+    window.location.assign('/auth/login');
+    return { data: null, error: errOut };
+  }
+
+  ({ data, error } = await supabase.functions.invoke(functionName, { body: {} }));
+  if (!error) return { data, error: null };
+
+  status = error?.context?.status ?? 500;
+  payload = await readInvokeErrorBody(error);
+  errOut = errorFromInvokePayload(payload, error.message);
+
+  if (status === 401) {
+    return { data: null, error: errOut };
+  }
+
+  return { data: null, error: errOut };
 }

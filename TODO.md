@@ -1,5 +1,25 @@
 # TODO
 
+## Edge Functions — деплой после правок в коде
+
+Выполняется вручную (нужны `supabase login` и привязка проекта). Из **корня репозитория**:
+
+```bash
+supabase link --project-ref <ваш-project-ref>
+```
+
+Разом все функции, где менялись валидация / `_shared` (март 2025):
+
+```bash
+supabase functions deploy organizations-create organizations-update organizations-delete organizations-set-main organizations-list profile-get profile-update documents-list documents-create documents-delete dadata-find-party payments-list create-payment --workdir backend
+```
+
+При 401 на шлюзе для отдельных функций — добавьте `--no-verify-jwt` к имени функции (см. README, SECURITY.md).
+
+- [x] **Деплой Edge Functions** — выполнено (все перечисленные функции задеплоены на связанный проект Supabase). При следующих правках в `backend/supabase/functions/` снова запустите команду из блока выше.
+
+---
+
 ## Безопасность (рекомендации)
 
 - [x] **Rate limit** — настроить ограничения для Login, Sign up, Password reset ✓

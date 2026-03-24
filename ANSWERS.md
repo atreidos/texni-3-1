@@ -13,7 +13,10 @@
 - **Политика паролей** — минимум 8 символов (было 6) на RegisterPage, SettingsPage (смена пароля), ResetPasswordPage.
 - **Валидация email** — формат `[^\s@]+@[^\s@]+\.[^\s@]+` на LoginPage, RegisterPage, ForgotPasswordPage.
 - **VITE_SHOW_ERRORS** — в production всегда `false`; показ ошибок разрешён только при `import.meta.env.DEV` и явном `VITE_SHOW_ERRORS=true`.
-- **.env.example** — создан в `frontend/.env.example` с заглушками VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_SHOW_ERRORS. .gitignore уже содержит `.env`.
+- **.env.example** — в репозитории `frontend/.env.example`: переменные без значений (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY; опционально VITE_SHOW_ERRORS закомментирован). .gitignore содержит `.env`.
+- **Финальный чеклист безопасности урока (24.03.2025)** — сводка: см. `SECURITY-CHECKS.md` раздел «Финальный чеклист урока». Остаётся по желанию: явный `CORS_ALLOWED_ORIGINS` в prod; единый формат ошибок с полем `field`; защита `create-payment` под реальный webhook (сейчас заглушка).
+- **Ошибки валидации «с указанием поля»** — реализовано: Edge Functions отдают JSON с `field` / `errors[]` (`_shared/validation-response.ts`); на фронте `validationErrorsMap` и подсветка полей в настройках профиля и в модалке организаций.
+- **Переименование файла при сохранении** — в уроке обычно: не класть в Storage оригинальное имя как есть (опасные символы, `../`). В проекте уже сделано: в `EditorPage` имя для пути — `file.name.replace(/[^a-zA-Z0-9._-]/g, '_')`, путь `{user_id}/{doc_id}/{fileName}`. Дополнительно можно хранить под случайным именем (`${docId}.pdf`) — необязательно, если санитизация устраивает.
 - **profile-update** Edge Function — серверная валидация: name (обязательно, ≤200), email (обязательно, формат, ≤254), phone (формат, ≤30, опционально).
 - **organizations-create, organizations-update** Edge Functions — серверная валидация реквизитов: name, INN (10/12 цифр), OGRN (13/15 цифр), KPP (9 цифр, опц.), BIK (9 цифр, опц.), расчётный и корр. счёт (20 цифр, опц.) — согласовано с CHECK в БД.
 - **403 для чужих данных**: documents-delete, organizations-delete, organizations-update, organizations-set-main перед операцией проверяют владельца через SELECT (RLS фильтрует чужие записи); при отсутствии доступа возвращают 403 и `{ error: "Доступ запрещён" }`.

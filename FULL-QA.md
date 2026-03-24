@@ -41,3 +41,14 @@
 2. **06** — использование уникальной организации (Сбербанк, ИНН 7707083893) вместо дубликата Яндекс
 3. **07** — SettingsPage переведён на `invokeEdgeFunction`; проверка «Сохранено» через regex
 4. **ARCHITECTURE** — зафиксирована замена `callEdgeFunction` на `invokeEdgeFunction` в SettingsPage
+
+---
+
+## Прогон 24.03.2025 (после правки create-payment)
+
+**Контекст:** изменён только `backend/supabase/functions/create-payment/index.ts` (ответ при ошибке БД). E2E этот путь не покрывает.
+
+| Статус | Количество | Примечание |
+|--------|------------|------------|
+| Passed | 12 | 01, 02, 03a–e, 04a–d, часть authenticated |
+| Failed | 6 | Зависание «Загрузка...» (05, 06), пустой email в 07, нет редиректа с editor в 08 — вероятно сеть/Supabase/сессия, не из-за create-payment |

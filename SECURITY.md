@@ -8,12 +8,12 @@
 
 Supabase Auth не ограничивает количество попыток входа, регистрации и сброса пароля по умолчанию. Без rate limiting возможны атаки brute-force и credential stuffing.
 
-**Что сделать:** Supabase Dashboard → **Authentication** → **Rate Limits** — настройте ограничения для:
+**Что сделать:** Supabase Dashboard → **Authentication** → **Rate Limits** — ограничения для:
 - Login (signIn)
 - Sign up (signUp)
 - Password reset (resetPasswordForEmail)
 
-Рекомендуется для production. Значения задаются в интерфейсе Supabase.
+Значения задаются в интерфейсе Supabase. После настройки пункт чеклиста «rate limit на логин/регистрацию» считается выполненным.
 
 ---
 

@@ -15,7 +15,7 @@ import FileUploader from '../components/FileUploader';
 import ProBadge from '../components/ProBadge';
 import { useAuth } from '../context/AuthContext';
 import { mockDocumentFields } from '../data/mockData';
-import { supabase, callEdgeFunction } from '../lib/supabase';
+import { supabase, callEdgeFunction, validationErrorsMap } from '../lib/supabase';
 
 // Группы полей документа
 const GROUP_LABELS = {
@@ -74,7 +74,18 @@ export default function EditorPage() {
         { id: docId, name: file.name, type, mime_type: mimeType, file_path: filePath, size_bytes: file.size },
         accessToken
       );
-      if (createError) throw new Error(createError.message);
+      if (createError) {
+        const m = validationErrorsMap(createError);
+        const first =
+          m.name ||
+          m.type ||
+          m.mime_type ||
+          m.file_path ||
+          m.size_bytes ||
+          m.organization_id ||
+          createError.message;
+        throw new Error(first);
+      }
 
       setIsSaved(true);
       navigate('/dashboard/documents');

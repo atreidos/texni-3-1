@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { type FieldError, validation400 } from "../_shared/validation-response.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -11,24 +12,31 @@ const MAX_NAME_LEN = 200;
 const MAX_EMAIL_LEN = 254;
 const MAX_PHONE_LEN = 30;
 
-function validateProfile(body: { name?: string; email?: string; phone?: string | null }): string | null {
+function collectProfileErrors(body: { name?: string; email?: string; phone?: string | null }): FieldError[] {
+  const errors: FieldError[] = [];
   const name = typeof body?.name === "string" ? body.name.trim() : "";
   const email = typeof body?.email === "string" ? body.email.trim() : "";
   const phone = body?.phone == null ? null : String(body.phone).trim();
 
-  if (!name) return "Имя обязательно";
-  if (name.length > MAX_NAME_LEN) return "Имя слишком длинное";
+  if (!name) errors.push({ field: "name", message: "Имя обязательно" });
+  else if (name.length > MAX_NAME_LEN) errors.push({ field: "name", message: "Имя слишком длинное" });
 
-  if (!email) return "Email обязателен";
-  if (email.length > MAX_EMAIL_LEN) return "Email слишком длинный";
-  if (!EMAIL_REGEX.test(email)) return "Неверный формат email";
-
-  if (phone !== null && phone !== "") {
-    if (phone.length > MAX_PHONE_LEN) return "Телефон слишком длинный";
-    if (!PHONE_REGEX.test(phone)) return "Неверный формат телефона";
+  if (!email) errors.push({ field: "email", message: "Email обязателен" });
+  else if (email.length > MAX_EMAIL_LEN) {
+    errors.push({ field: "email", message: "Email слишком длинный" });
+  } else if (!EMAIL_REGEX.test(email)) {
+    errors.push({ field: "email", message: "Неверный формат email" });
   }
 
-  return null;
+  if (phone !== null && phone !== "") {
+    if (phone.length > MAX_PHONE_LEN) {
+      errors.push({ field: "phone", message: "Телефон слишком длинный" });
+    } else if (!PHONE_REGEX.test(phone)) {
+      errors.push({ field: "phone", message: "Неверный формат телефона" });
+    }
+  }
+
+  return errors;
 }
 
 serve(async (req) => {
@@ -71,12 +79,9 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const validationError = validateProfile(body);
-    if (validationError) {
-      return new Response(JSON.stringify({ error: validationError }), {
-        status: 400,
-        headers: cors,
-      });
+    const profileErrors = collectProfileErrors(body);
+    if (profileErrors.length > 0) {
+      return validation400(cors, profileErrors);
     }
 
     const name = (body?.name ?? "").trim();

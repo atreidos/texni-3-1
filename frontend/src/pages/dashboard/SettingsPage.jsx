@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { Camera, AlertTriangle, Loader2, AlertCircle } from 'lucide-react';
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
-import { invokeEdgeFunction, supabase } from '../../lib/supabase';
+import { invokeEdgeFunction, supabase, validationErrorsMap } from '../../lib/supabase';
 
 export default function SettingsPage() {
   const { user, profile, logout, refreshProfile } = useAuth();
@@ -15,6 +15,8 @@ export default function SettingsPage() {
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState('');
+  /** @type {Record<string, string>} */
+  const [profileFieldErrors, setProfileFieldErrors] = useState({});
 
   const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' });
   const [pwSaved, setPwSaved] = useState(false);
@@ -42,6 +44,7 @@ export default function SettingsPage() {
   async function handleProfileSave(e) {
     e.preventDefault();
     setProfileError('');
+    setProfileFieldErrors({});
     setProfileSaving(true);
 
     const { error: err } = await invokeEdgeFunction('profile-update', {
@@ -51,8 +54,14 @@ export default function SettingsPage() {
     });
 
     if (err) {
-      setProfileError(err.message);
+      const m = validationErrorsMap(err);
+      if (Object.keys(m).length > 0) {
+        setProfileFieldErrors(m);
+      } else {
+        setProfileError(err.message);
+      }
     } else {
+      setProfileFieldErrors({});
       await refreshProfile();
       setProfileSaved(true);
       setTimeout(() => setProfileSaved(false), 2500);
@@ -117,18 +126,46 @@ export default function SettingsPage() {
                 <input
                   type="text"
                   value={profileForm.name}
-                  onChange={e => setProfileForm(p => ({ ...p, name: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={e => {
+                    setProfileForm(p => ({ ...p, name: e.target.value }));
+                    setProfileFieldErrors((fe) => {
+                      const next = { ...fe };
+                      delete next.name;
+                      return next;
+                    });
+                  }}
+                  className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                    profileFieldErrors.name
+                      ? 'border-red-400 focus:ring-red-400'
+                      : 'border-slate-200 focus:ring-blue-500'
+                  }`}
                 />
+                {profileFieldErrors.name && (
+                  <p className="text-xs text-red-500 mt-1">{profileFieldErrors.name}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Телефон</label>
                 <input
                   type="tel"
                   value={profileForm.phone}
-                  onChange={e => setProfileForm(p => ({ ...p, phone: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={e => {
+                    setProfileForm(p => ({ ...p, phone: e.target.value }));
+                    setProfileFieldErrors((fe) => {
+                      const next = { ...fe };
+                      delete next.phone;
+                      return next;
+                    });
+                  }}
+                  className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                    profileFieldErrors.phone
+                      ? 'border-red-400 focus:ring-red-400'
+                      : 'border-slate-200 focus:ring-blue-500'
+                  }`}
                 />
+                {profileFieldErrors.phone && (
+                  <p className="text-xs text-red-500 mt-1">{profileFieldErrors.phone}</p>
+                )}
               </div>
             </div>
             <div>
@@ -136,9 +173,23 @@ export default function SettingsPage() {
               <input
                 type="email"
                 value={profileForm.email}
-                onChange={e => setProfileForm(p => ({ ...p, email: e.target.value }))}
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={e => {
+                  setProfileForm(p => ({ ...p, email: e.target.value }));
+                  setProfileFieldErrors((fe) => {
+                    const next = { ...fe };
+                    delete next.email;
+                    return next;
+                  });
+                }}
+                className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                  profileFieldErrors.email
+                    ? 'border-red-400 focus:ring-red-400'
+                    : 'border-slate-200 focus:ring-blue-500'
+                }`}
               />
+              {profileFieldErrors.email && (
+                <p className="text-xs text-red-500 mt-1">{profileFieldErrors.email}</p>
+              )}
             </div>
 
             {profileError && (
