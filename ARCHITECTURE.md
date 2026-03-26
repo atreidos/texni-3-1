@@ -9,6 +9,7 @@
 - **Lucide React** — иконки
 - **@supabase/supabase-js** — клиент Supabase (Auth + PostgreSQL) на фронте
 - **Supabase** — backend-платформа (PostgreSQL + Auth + PostgREST + Edge Functions)
+- **@sentry/react** — мониторинг ошибок и производительности в браузере (опционально, если задан `VITE_SENTRY_DSN`)
 
 ---
 
@@ -24,8 +25,9 @@ frontend/
 ├── package.json
 ├── public/
 └── src/
-├── main.jsx               # Точка входа: ErrorBoundary + UnhandledRejectionHandler + BrowserRouter + AuthProvider + App
-├── App.jsx                # Маршруты + PrivateRoute (проверяет loading → isLoggedIn)
+├── instrument.js          # Sentry.init (импортируется первым из main.jsx); Router v7 tracing + Session Replay
+├── main.jsx               # Точка входа: instrument → ErrorBoundary + UnhandledRejectionHandler + BrowserRouter + AuthProvider + App
+├── App.jsx                # Маршруты (Sentry.withSentryReactRouterV7Routing(Routes)) + PrivateRoute (loading → isLoggedIn)
 ├── index.css              # Tailwind @import + базовые стили
 ├── config.js              # Конфиг из .env: showErrorsOnScreen (VITE_SHOW_ERRORS)
 │
@@ -150,6 +152,16 @@ Edge Functions деплоятся через Supabase CLI. Для `create-paymen
 **Важно:** `showErrorsOnScreen` в production **всегда false** — `import.meta.env.DEV` ограничивает включение только режимом разработки. В продакшене стек-трейсы не показываются.
 
 Выключить в dev: удалить `VITE_SHOW_ERRORS` из .env или поставить `VITE_SHOW_ERRORS=false`.
+
+---
+
+## Sentry (мониторинг ошибок)
+
+- **Включение:** в `frontend/.env` задаётся `VITE_SENTRY_DSN` (Client DSN из проекта Sentry). Если переменная пуста или отсутствует, SDK не инициализируется.
+- **Инициализация:** `frontend/src/instrument.js` импортируется первым в `main.jsx`; интеграции: React Router v7 browser tracing, Session Replay (текст/медиа маскируются).
+- **Сборка:** в `vite.config.js` включён `build.sourcemap: 'hidden'` — файлы `.map` в `dist` для загрузки в Sentry (отдельно: CLI или `@sentry/vite-plugin` + `SENTRY_AUTH_TOKEN`).
+- **Ошибки React:** `ErrorBoundary` вызывает `Sentry.captureException` с `componentStack`.
+- **Пользователь в Sentry:** при наличии DSN `AuthContext` выставляет `setUser({ id })` по `user.id` Supabase и сбрасывает при выходе; email намеренно не передаётся (`sendDefaultPii: false`).
 
 ---
 

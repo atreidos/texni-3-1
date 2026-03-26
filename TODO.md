@@ -27,3 +27,10 @@ supabase functions deploy organizations-create organizations-update organization
 
 - [ ] **HTTP Security Headers** — Content-Security-Policy, X-Frame-Options: DENY, X-Content-Type-Options: nosniff, Strict-Transport-Security
   - Где: конфиг хостинга (Vercel: vercel.json или Dashboard; Netlify: _headers или netlify.toml; nginx: server { add_header ... })
+
+---
+
+## Sentry
+
+- [ ] **VITE_SENTRY_DSN** — добавьте в `frontend/.env` DSN из Sentry (Client Keys). Без переменной SDK не активен.
+- [ ] **Source maps в Sentry (опционально)** — для читаемых стеков в production: `@sentry/vite-plugin`, org/project и `SENTRY_AUTH_TOKEN` в CI (не коммитить токен).

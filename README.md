@@ -2,7 +2,7 @@
 
 Веб-сервис для автоматического заполнения и подписи юридических документов (договоры, акты, счета).
 
-**Стек:** React 19 · Vite 7 · Tailwind CSS 4 · React Router 7 · Supabase (Auth + PostgreSQL)
+**Стек:** React 19 · Vite 7 · Tailwind CSS 4 · React Router 7 · Supabase (Auth + PostgreSQL) · Sentry (опционально)
 
 ---
 
@@ -29,6 +29,14 @@ cp frontend/.env.example frontend/.env
 VITE_SUPABASE_URL=https://your-project-id.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key-here
 ```
+
+Опционально — мониторинг ошибок (Sentry): в проекте Sentry возьмите **Client Keys (DSN)** и добавьте:
+
+```env
+VITE_SENTRY_DSN=https://...@....ingest.de.sentry.io/...
+```
+
+Без этой переменной Sentry не инициализируется. Подробнее: `ARCHITECTURE.md` (раздел Sentry).
 
 Опционально — вывод ошибок на экран (для отладки белого экрана и т.п.):
 

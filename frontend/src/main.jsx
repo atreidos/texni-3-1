@@ -1,10 +1,12 @@
 // ============================================================
 // main.jsx — точка входа приложения
+// instrument.js — Sentry (должен импортироваться первым, см. instrument.js)
 // Оборачиваем App в BrowserRouter и AuthProvider
 // ErrorBoundary перехватывает ошибки рендера (при VITE_SHOW_ERRORS=true)
 // UnhandledRejectionHandler показывает ошибки промисов
 // ============================================================
 
+import './instrument';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';

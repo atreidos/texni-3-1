@@ -17,9 +17,12 @@
 //   *                          → NotFoundPage
 // ============================================================
 
+import * as Sentry from '@sentry/react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
+
+const SentryRoutes = Sentry.withSentryReactRouterV7Routing(Routes);
 
 // Публичные страницы
 import LandingPage from './pages/LandingPage';
@@ -71,7 +74,7 @@ function PrivateRoute({ children }) {
 
 export default function App() {
   return (
-    <Routes>
+    <SentryRoutes>
       {/* Главная: авторизованный → /dashboard (Обзор), иначе лендинг */}
       <Route path="/" element={<LandingOrRedirect />} />
       <Route path="/editor" element={<EditorPage />} />
@@ -93,6 +96,6 @@ export default function App() {
 
       {/* 404 — всё что не нашлось */}
       <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+    </SentryRoutes>
   );
 }

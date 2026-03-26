@@ -4,7 +4,11 @@
 // ============================================================
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { setUser as sentrySetUser } from '@sentry/react';
 import { supabase, fetchFromEdge } from '../lib/supabase';
+
+const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
+const sentryUserSyncEnabled = Boolean(sentryDsn && String(sentryDsn).trim());
 
 const AuthContext = createContext(null);
 
@@ -125,6 +129,16 @@ export function AuthProvider({ children }) {
       subscription.unsubscribe();
     };
   }, [fetchProfile]);
+
+  // Sentry: только uuid пользователя (без email) — для сгруппированных событий
+  useEffect(() => {
+    if (!sentryUserSyncEnabled) return;
+    if (user?.id) {
+      sentrySetUser({ id: user.id });
+    } else {
+      sentrySetUser(null);
+    }
+  }, [user?.id]);
 
   // Вход — бросает ошибку при неудаче
   async function login(email, password) {

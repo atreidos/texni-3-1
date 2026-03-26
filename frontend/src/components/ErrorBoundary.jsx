@@ -4,6 +4,7 @@
 // ============================================================
 
 import { Component } from 'react';
+import * as Sentry from '@sentry/react';
 import { showErrorsOnScreen } from '../config';
 import { AlertCircle } from 'lucide-react';
 
@@ -16,6 +17,9 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     this.setState((s) => ({ ...s, errorInfo }));
+    Sentry.captureException(error, {
+      contexts: { react: { componentStack: errorInfo?.componentStack } },
+    });
     if (showErrorsOnScreen) {
       console.error('ErrorBoundary caught:', error, errorInfo);
     }
