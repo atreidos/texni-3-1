@@ -1,7 +1,7 @@
 // ============================================================
 // main.jsx — точка входа приложения
 // instrument.js — Sentry (должен импортироваться первым, см. instrument.js)
-// Оборачиваем App в BrowserRouter и AuthProvider
+// Оборачиваем App в BrowserRouter (внутри — YandexMetrikaRouteTracker для SPA-hit) и AuthProvider
 // ErrorBoundary перехватывает ошибки рендера (при VITE_SHOW_ERRORS=true)
 // UnhandledRejectionHandler показывает ошибки промисов
 // ============================================================
@@ -13,6 +13,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import UnhandledRejectionHandler from './components/UnhandledRejectionHandler';
+import YandexMetrikaRouteTracker from './components/YandexMetrikaRouteTracker';
 import App from './App.jsx';
 import './index.css';
 
@@ -21,6 +22,7 @@ createRoot(document.getElementById('root')).render(
     <ErrorBoundary>
       <UnhandledRejectionHandler>
         <BrowserRouter>
+          <YandexMetrikaRouteTracker />
           <AuthProvider>
             <App />
           </AuthProvider>

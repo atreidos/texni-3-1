@@ -2,7 +2,7 @@
 
 Веб-сервис для автоматического заполнения и подписи юридических документов (договоры, акты, счета).
 
-**Стек:** React 19 · Vite 7 · Tailwind CSS 4 · React Router 7 · Supabase (Auth + PostgreSQL) · Sentry (опционально)
+**Стек:** React 19 · Vite 7 · Tailwind CSS 4 · React Router 7 · Supabase (Auth + PostgreSQL) · Sentry (опционально) · Yandex.Metrica (счётчик и Вебвизор)
 
 ---
 

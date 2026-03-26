@@ -176,3 +176,18 @@ supabase functions deploy organizations-delete --workdir backend
 
 - Edge Function `create-payment`: при ошибке insert клиенту больше не отдаётся текст из PostgREST, только `{ "error": "Не удалось сохранить платёж" }`; детали в `console.error` на сервере.
 - Автотесты `npm test` в этой сессии: 12 passed, 6 failed (зависание «Загрузка...», пустой email в настройках, редирект с editor — внешний Supabase/сессия, не связано с create-payment).
+
+---
+
+## 27.03.2026 — Yandex.Metrica
+
+**N1**
+
+1. Тест «Сборка фронта после подключения Метрики».
+2. Ошибка: нет; `npm run build` — успех.
+3. Исправил: не требовалось.
+4. Скриншот: нет.
+
+**Ручная проверка (рекомендуется):** `npm run dev` → в DevTools → Network запросы к `mc.yandex.ru`; переход по маршрутам (например `/` → `/pricing`) — ожидаем доп. hit без дубля первой загрузки.
+
+-------------

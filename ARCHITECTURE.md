@@ -10,6 +10,7 @@
 - **@supabase/supabase-js** — клиент Supabase (Auth + PostgreSQL) на фронте
 - **Supabase** — backend-платформа (PostgreSQL + Auth + PostgREST + Edge Functions)
 - **@sentry/react** — мониторинг ошибок и производительности в браузере (опционально, если задан `VITE_SENTRY_DSN`)
+- **Yandex.Metrica** — счётчик и Вебвизор: инициализация в `frontend/index.html`, виртуальные просмотры при смене маршрута — `YandexMetrikaRouteTracker` в `main.jsx` (внутри `BrowserRouter`)
 
 ---
 
@@ -26,7 +27,7 @@ frontend/
 ├── public/
 └── src/
 ├── instrument.js          # Sentry.init (импортируется первым из main.jsx); Router v7 tracing + Session Replay
-├── main.jsx               # Точка входа: instrument → ErrorBoundary + UnhandledRejectionHandler + BrowserRouter + AuthProvider + App
+├── main.jsx               # Точка входа: instrument → ErrorBoundary + UnhandledRejectionHandler + BrowserRouter + YandexMetrikaRouteTracker + AuthProvider + App
 ├── App.jsx                # Маршруты (Sentry.withSentryReactRouterV7Routing(Routes)) + PrivateRoute (loading → isLoggedIn)
 ├── index.css              # Tailwind @import + базовые стили
 ├── config.js              # Конфиг из .env: showErrorsOnScreen (VITE_SHOW_ERRORS)
@@ -53,7 +54,8 @@ frontend/
 │   ├── FileUploader.jsx   # Drag-and-drop загрузка .docx/.pdf
 │   ├── PricingCard.jsx    # Карточка тарифа
 │   ├── StatusBadge.jsx    # Бейдж статуса документа
-│   └── ProBadge.jsx       # Бейдж «PRO»
+│   ├── ProBadge.jsx       # Бейдж «PRO»
+│   └── YandexMetrikaRouteTracker.jsx # SPA: ym(id, 'hit', path) при client-side навигации
 │
 └── pages/
     ├── LandingPage.jsx    # / — публичная; данные: mockTestimonials, mockPlans (статика)
