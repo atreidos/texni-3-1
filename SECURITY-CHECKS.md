@@ -9,6 +9,7 @@
 | sendDefaultPii | false; в setUser только UUID (`id`) |
 | Replay | maskAllText, blockAllMedia |
 | Анонимные записи в БД | Не затронуто — только клиентский SDK |
+| Dev-кнопка Sentry на лендинге | Только `import.meta.env.DEV` + DSN; в prod не рендерится |
 
 ## 23.03.2025 — Документы: загрузка, удаление, скачивание
 

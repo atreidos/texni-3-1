@@ -13,4 +13,4 @@
 
 - `npm run build` — успех.
 - Playwright: 17 passed, 1 failed (см. N1).
-- Проверки вручную при наличии `VITE_SENTRY_DSN`: открыть приложение, вызвать искусственную ошибку в консоли или дождаться события — событие должно появиться в Sentry Issues.
+- Проверки вручную: `npm run dev`, главная `/`, панель внизу справа «Отправить тест в Sentry» → в Sentry **Issues**, environment `development`, текст ошибки `DocFlow: ручная проверка Sentry`.

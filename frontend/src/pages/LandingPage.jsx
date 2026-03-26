@@ -3,6 +3,7 @@
 // Секции: Hero, Возможности, Как работает, Тарифы, Отзывы, Футер
 // ============================================================
 
+import * as Sentry from '@sentry/react';
 import { useNavigate } from 'react-router-dom';
 import {
   Upload, Sparkles, PenTool, Building2,
@@ -53,6 +54,10 @@ const steps = [
 
 // --- Логотипы клиентов (заглушки) ---
 const clientLogos = ['Компания А', 'Компания Б', 'Компания В', 'Компания Г', 'Компания Д'];
+
+// Ручная проверка Sentry: только dev + задан VITE_SENTRY_DSN (см. ARCHITECTURE.md → Sentry)
+const showSentryDevTest =
+  import.meta.env.DEV && Boolean(String(import.meta.env.VITE_SENTRY_DSN ?? '').trim());
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -257,6 +262,24 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {showSentryDevTest && (
+        <div className="fixed bottom-4 right-4 z-[100] max-w-[220px] rounded-lg border border-amber-500/40 bg-slate-900/95 px-3 py-2 text-xs text-slate-200 shadow-xl backdrop-blur-sm">
+          <p className="mb-2 font-medium text-amber-400">Sentry · только npm run dev</p>
+          <button
+            type="button"
+            className="w-full rounded-md bg-amber-600 px-2 py-1.5 font-medium text-white hover:bg-amber-500"
+            onClick={() => {
+              Sentry.captureException(new Error('DocFlow: ручная проверка Sentry'));
+              window.alert(
+                'Событие отправлено.\n\nSentry → Issues → новое событие с текстом «DocFlow: ручная проверка Sentry».\nФильтр environment: development.'
+              );
+            }}
+          >
+            Отправить тест в Sentry
+          </button>
+        </div>
+      )}
     </div>
   );
 }

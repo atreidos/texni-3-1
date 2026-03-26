@@ -162,6 +162,7 @@ Edge Functions деплоятся через Supabase CLI. Для `create-paymen
 - **Сборка:** в `vite.config.js` включён `build.sourcemap: 'hidden'` — файлы `.map` в `dist` для загрузки в Sentry (отдельно: CLI или `@sentry/vite-plugin` + `SENTRY_AUTH_TOKEN`).
 - **Ошибки React:** `ErrorBoundary` вызывает `Sentry.captureException` с `componentStack`.
 - **Пользователь в Sentry:** при наличии DSN `AuthContext` выставляет `setUser({ id })` по `user.id` Supabase и сбрасывает при выходе; email намеренно не передаётся (`sendDefaultPii: false`).
+- **Ручная проверка (только dev):** при `npm run dev` и заданном `VITE_SENTRY_DSN` на главной странице `/` в правом нижнем углу панель «Sentry» с кнопкой «Отправить тест в Sentry». После клика смотреть в интерфейсе Sentry: **Issues** — событие с сообщением `DocFlow: ручная проверка Sentry`, **environment** `development`. В production-сборке панель не показывается.
 
 ---
 
