@@ -78,6 +78,8 @@ VITE_SHOW_ERRORS=true
    - Это создаст таблицы `profiles`, `organizations`, `documents`, `document_fields`, `payments`,
      а также настроит RLS-политики и триггеры (в том числе автосоздание профиля при регистрации).
 
+**Логи Edge Functions (опционально):** в Secrets можно задать `EDGE_STRUCTURED_LOGGING=false` (или `0` / `no` / `off`), чтобы отключить JSON-логирование запросов POST/PATCH/DELETE, ошибок и бизнес-событий из `_shared/logger.ts`. Подробнее — `ARCHITECTURE.md` и `SECURITY.md`.
+
 **Деплой Edge Functions** (нужен для E2E 05–08 и чтобы в облаке совпадали валидация и формат ошибок с репозиторием):
 
 ```bash

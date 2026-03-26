@@ -111,6 +111,15 @@ Edge Functions деплоятся через Supabase CLI. Для `create-paymen
 
 **Формат ошибок валидации (HTTP 400):** общий модуль `_shared/validation-response.ts`. Ответ: `{ error, field? }` для одной ошибки; при нескольких — дополнительно `errors: [{ field, message }, ...]`. Клиент: `validationErrorsMap()` в `frontend/src/lib/supabase.js` строит объект для подсветки полей; `SettingsPage` и модалка организаций подставляют сообщения по `field`.
 
+**Структурированное логирование (Edge):** модуль `_shared/logger.ts`. В stdout пишется одна строка JSON на событие:
+- `type: "http_mutation"` — для входящих запросов с методом POST, PATCH или DELETE: `function`, `method`, `path` (pathname + query, без домена), `status`, `duration_ms`. Тело запроса и заголовки не логируются.
+- `type: "error"` — исключения и явные сбои: `message`, `stack`, опционально `context` (санитизирован).
+- `type: "business"` — ключевые действия: `action` (например `organization_created`, `document_deleted`, `profile_updated`, `payment_record_created`, `dadata_party_lookup` и др.), `data` с UUID и без секретов; поля с именами вроде `password`, `token`, `api_key` в объектах маскируются как `[REDACTED]`.
+
+Включение/выключение: секрет окружения Edge Function **`EDGE_STRUCTURED_LOGGING`**. Значения `false`, `0`, `no`, `off` (без учёта регистра) — логи отключены; пусто или не задано — включено.
+
+**Регистрация нового пользователя** выполняется через Supabase Auth на клиенте (`signUp`), не через отдельную Edge Function в этом репозитории; бизнес-событие «регистрация» в этих логах не дублирует Auth — при необходимости его можно подключить через Auth Webhook / Database trigger отдельно.
+
 ---
 
 ## Логика авторизации

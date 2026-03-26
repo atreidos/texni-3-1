@@ -8,6 +8,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { logBusiness, logError, runWithHttpMutationLog } from "../_shared/logger.ts";
 import { validation400One } from "../_shared/validation-response.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -103,199 +104,200 @@ function addWarnings(mapped: Record<string, unknown>): Record<string, unknown> {
   return mapped;
 }
 
-serve(async (req) => {
-  const cors = getCorsHeaders(req);
-  const requestId = crypto.randomUUID().slice(0, 8);
-  const log = (msg: string, data?: unknown) => {
-    console.log(`[dadata-find-party ${requestId}] ${msg}`, data ?? "");
-  };
+serve(async (req) =>
+  runWithHttpMutationLog(req, "dadata-find-party", async () => {
+    const cors = getCorsHeaders(req);
 
-  log("Request received", { method: req.method });
+    if (req.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: cors });
+    }
 
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: cors });
-  }
+    if (req.method !== "POST") {
+      return new Response(JSON.stringify({ error: "Method Not Allowed" }), {
+        status: 405,
+        headers: cors,
+      });
+    }
 
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method Not Allowed" }), {
-      status: 405,
-      headers: cors,
-    });
-  }
-
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    log("Unauthorized: no Bearer token");
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: cors,
-    });
-  }
-  const jwt = authHeader.replace("Bearer ", "");
-
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: `Bearer ${jwt}` } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  log("Verifying JWT...");
-  try {
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser(jwt);
-    log("Auth result", { hasUser: !!user, error: userError?.message });
-    if (userError || !user) {
-      log("Unauthorized: invalid or missing user", { userError: userError?.message });
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: cors,
       });
     }
-  } catch (e) {
-    log("Auth check error", e);
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: cors,
+    const jwt = authHeader.replace("Bearer ", "");
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${jwt}` } },
+      auth: { persistSession: false, autoRefreshToken: false },
     });
-  }
 
-  let body: { inn?: string; query?: string };
-  try {
-    body = await req.json();
-  } catch {
-    log("Invalid JSON body");
-    return validation400One(cors, "body", "Некорректный JSON в теле запроса");
-  }
-
-  const inn = String(body?.inn ?? "").trim();
-  const query = String(body?.query ?? "").trim();
-  log("Request", { inn, query });
-
-  const apiKey = Deno.env.get("DADATA_API_KEY");
-  if (!apiKey) {
-    log("DaData not configured: DADATA_API_KEY missing");
-    return new Response(JSON.stringify({ error: "DaData не настроен" }), {
-      status: 500,
-      headers: cors,
-    });
-  }
-
-  const useInn = inn && INN_REGEX.test(inn);
-  const useQuery = query.length >= 2 && !INN_REGEX.test(query.replace(/\s/g, ""));
-
-  if (!useInn && !useQuery) {
-    log("Invalid request: need inn (10/12 digits) or query (>=2 chars)");
-    return validation400One(
-      cors,
-      "search",
-      "Укажите ИНН (10 или 12 цифр) или название (минимум 2 символа)",
-    );
-  }
-
-  if (useInn) {
-    if (!validateInnChecksum(inn)) {
-      log("INN checksum failed", { inn });
-      return validation400One(cors, "inn", "ИНН содержит ошибку (алгоритм ФНС)");
-    }
-  }
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), DADATA_TIMEOUT_MS);
-
-  const dadataUrl = useInn ? DADATA_FIND_BY_ID_URL : DADATA_SUGGEST_URL;
-  const dadataBody = useInn ? { query: inn } : { query, count: 1 };
-
-  try {
-    log("DaData request", { url: dadataUrl, body: dadataBody });
-    const dadataRes = await fetch(dadataUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Token ${apiKey}`,
-      },
-      body: JSON.stringify(dadataBody as Record<string, unknown>),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-
-    log("DaData response", { status: dadataRes.status });
-
-    if (dadataRes.status === 401) {
-      log("DaData 401: invalid API key");
-      return new Response(JSON.stringify({ error: "Ошибка доступа к DaData" }), {
-        status: 502,
+    let userId: string | undefined;
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser(jwt);
+      if (userError || !user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: cors,
+        });
+      }
+      userId = user.id;
+    } catch (e) {
+      logError(e, { function: "dadata-find-party", phase: "auth" });
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
         headers: cors,
       });
     }
 
-    if (dadataRes.status === 429) {
-      log("DaData 429: rate limit exceeded");
-      return new Response(JSON.stringify({ error: "Превышен лимит запросов. Попробуйте позже" }), {
-        status: 502,
+    let body: { inn?: string; query?: string };
+    try {
+      body = await req.json();
+    } catch {
+      return validation400One(cors, "body", "Некорректный JSON в теле запроса");
+    }
+
+    const inn = String(body?.inn ?? "").trim();
+    const query = String(body?.query ?? "").trim();
+
+    const apiKey = Deno.env.get("DADATA_API_KEY");
+    if (!apiKey) {
+      logError(new Error("DADATA_API_KEY missing"), { function: "dadata-find-party" });
+      return new Response(JSON.stringify({ error: "DaData не настроен" }), {
+        status: 500,
         headers: cors,
       });
     }
 
-    if (dadataRes.status >= 500) {
-      const text = await dadataRes.text();
-      log("DaData 5xx", { status: dadataRes.status, body: text.slice(0, 200) });
-      return new Response(JSON.stringify({ error: "Сервис временно недоступен" }), {
-        status: 502,
-        headers: cors,
-      });
+    const useInn = inn && INN_REGEX.test(inn);
+    const useQuery = query.length >= 2 && !INN_REGEX.test(query.replace(/\s/g, ""));
+
+    if (!useInn && !useQuery) {
+      return validation400One(
+        cors,
+        "search",
+        "Укажите ИНН (10 или 12 цифр) или название (минимум 2 символа)",
+      );
     }
 
-    const dadataJson = await dadataRes.json();
-    log("DaData response body", dadataJson);
+    if (useInn) {
+      if (!validateInnChecksum(inn)) {
+        return validation400One(cors, "inn", "ИНН содержит ошибку (алгоритм ФНС)");
+      }
+    }
 
-    const suggestions = dadataJson?.suggestions ?? [];
-    if (!Array.isArray(suggestions) || suggestions.length === 0) {
-      return new Response(JSON.stringify({ ok: true, data: null }), {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), DADATA_TIMEOUT_MS);
+
+    const dadataUrl = useInn ? DADATA_FIND_BY_ID_URL : DADATA_SUGGEST_URL;
+    const dadataBody = useInn ? { query: inn } : { query, count: 1 };
+
+    try {
+      const dadataRes = await fetch(dadataUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Token ${apiKey}`,
+        },
+        body: JSON.stringify(dadataBody as Record<string, unknown>),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (dadataRes.status === 401) {
+        logError(new Error("DaData 401"), { function: "dadata-find-party", phase: "dadata_http" });
+        return new Response(JSON.stringify({ error: "Ошибка доступа к DaData" }), {
+          status: 502,
+          headers: cors,
+        });
+      }
+
+      if (dadataRes.status === 429) {
+        return new Response(JSON.stringify({ error: "Превышен лимит запросов. Попробуйте позже" }), {
+          status: 502,
+          headers: cors,
+        });
+      }
+
+      if (dadataRes.status >= 500) {
+        const text = await dadataRes.text();
+        logError(new Error(`DaData ${dadataRes.status}: ${text.slice(0, 200)}`), {
+          function: "dadata-find-party",
+          phase: "dadata_http",
+        });
+        return new Response(JSON.stringify({ error: "Сервис временно недоступен" }), {
+          status: 502,
+          headers: cors,
+        });
+      }
+
+      const dadataJson = await dadataRes.json();
+
+      const suggestions = dadataJson?.suggestions ?? [];
+      if (!Array.isArray(suggestions) || suggestions.length === 0) {
+        logBusiness(
+          "dadata_party_lookup",
+          { userId, mode: useInn ? "by_inn" : "by_name", found: false },
+          { function: "dadata-find-party" },
+        );
+        return new Response(JSON.stringify({ ok: true, data: null }), {
+          status: 200,
+          headers: cors,
+        });
+      }
+
+      const first = suggestions[0] as DaDataParty;
+      let mapped = mapDaDataToForm(first);
+      mapped = addWarnings(mapped);
+
+      const out = {
+        name: mapped.name,
+        inn: mapped.inn,
+        kpp: mapped.kpp,
+        ogrn: mapped.ogrn,
+        address: mapped.address,
+        phone: mapped.phone,
+        email: mapped.email,
+        bank: mapped.bank,
+        warnings: mapped._warnings,
+      };
+
+      logBusiness(
+        "dadata_party_lookup",
+        {
+          userId,
+          mode: useInn ? "by_inn" : "by_name",
+          found: true,
+          warningCount: Array.isArray(mapped._warnings) ? (mapped._warnings as string[]).length : 0,
+        },
+        { function: "dadata-find-party" },
+      );
+
+      return new Response(JSON.stringify({ ok: true, data: out }), {
         status: 200,
         headers: cors,
       });
-    }
+    } catch (e) {
+      clearTimeout(timeoutId);
+      const isAbort = e instanceof Error && e.name === "AbortError";
+      const isTimeout = isAbort || /timeout|aborted/i.test(String(e));
+      logError(e, { function: "dadata-find-party", phase: "dadata_fetch", isTimeout });
 
-    const first = suggestions[0] as DaDataParty;
-    let mapped = mapDaDataToForm(first);
-    mapped = addWarnings(mapped);
+      if (isTimeout) {
+        return new Response(JSON.stringify({ error: "Сервис временно недоступен" }), {
+          status: 502,
+          headers: cors,
+        });
+      }
 
-    const out = {
-      name: mapped.name,
-      inn: mapped.inn,
-      kpp: mapped.kpp,
-      ogrn: mapped.ogrn,
-      address: mapped.address,
-      phone: mapped.phone,
-      email: mapped.email,
-      bank: mapped.bank,
-      warnings: mapped._warnings,
-    };
-
-    log("Response success", { hasWarnings: (mapped._warnings as string[])?.length > 0 });
-
-    return new Response(JSON.stringify({ ok: true, data: out }), {
-      status: 200,
-      headers: cors,
-    });
-  } catch (e) {
-    clearTimeout(timeoutId);
-    const isAbort = e instanceof Error && e.name === "AbortError";
-    const isTimeout = isAbort || /timeout|aborted/i.test(String(e));
-    log("DaData request failed", { error: String(e), isTimeout });
-
-    if (isTimeout) {
       return new Response(JSON.stringify({ error: "Сервис временно недоступен" }), {
         status: 502,
         headers: cors,
       });
     }
-
-    return new Response(JSON.stringify({ error: "Сервис временно недоступен" }), {
-      status: 502,
-      headers: cors,
-    });
-  }
-});
+  }));

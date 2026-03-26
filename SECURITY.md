@@ -28,6 +28,14 @@ Supabase Auth не ограничивает количество попыток 
 
 ---
 
+## Структурированные логи Edge Functions
+
+- **Модуль:** `backend/supabase/functions/_shared/logger.ts`; вывод — одна строка JSON на событие (`http_mutation`, `error`, `business`).
+- **Секреты:** тела запросов и заголовки Authorization в лог не попадают; в `business`-данных поля с ключами вроде `password`, `token`, `api_key` маскируются.
+- **Отключение:** секрет **`EDGE_STRUCTURED_LOGGING`** в настройках Edge Functions (Supabase Dashboard → Edge Functions → Secrets). Значения `false`, `0`, `no`, `off` отключают весь структурированный вывод из модуля; не задан — поведение по умолчанию «включено».
+
+---
+
 ## Переменные окружения
 
 - **VITE_SENTRY_DSN** — публичный browser DSN Sentry (попадает в клиентский бандл). Это **не** секрет аутентификации; защита проекта в Sentry — через настройки организации/проекта и токены для загрузки source maps (только CI/локально, не в `VITE_*`). Сессии Replay настроены с маскированием текста и медиа. В Sentry передаётся только `user.id` (UUID), не email.
